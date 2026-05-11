@@ -1,5 +1,7 @@
+import '../styles/site.css';
+import '../styles/extractor.css';
 import shellHtml from '../app/shell.html?raw';
-import '../app/core.js';
+import { init as initExtractorCore } from '../app/core.js';
 
 const app = document.getElementById('app');
 
@@ -8,3 +10,5 @@ if (!app) {
 }
 
 app.innerHTML = shellHtml;
+
+initExtractorCore();

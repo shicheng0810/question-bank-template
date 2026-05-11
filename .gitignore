@@ -11,6 +11,10 @@ coverage
 # tests
 playwright-report
 test-results
+.playwright-mcp
+
+# verification screenshots (Claude Code generated)
+extractor-*.png
 
 # tmp artifacts (项目根遗留的 tmp-*.png 截图等)
 tmp-*.png

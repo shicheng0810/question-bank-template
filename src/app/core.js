@@ -17,6 +17,9 @@ import {
   questionCanUseAiAnswer,
 } from './features/ai-answer-fill-logic.js';
 
+export let appContext = null;
+
+export function init() {
 const $  = s => document.querySelector(s);
 const fileInput = $('#file');
 const qbankFileInput = $('#qbankFile');
@@ -2773,7 +2776,7 @@ function escapeHTML(s){
 
 
 
-export const appContext = {
+appContext = {
   get datasets() { return datasets; },
   get activeIdx() { return activeIdx; },
   set activeIdx(value) { activeIdx = value; },
@@ -2799,4 +2802,5 @@ export const appContext = {
 
 if (typeof window !== 'undefined') {
   window.__QB_EXTRACTOR_READY__ = true;
+}
 }
