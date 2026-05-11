@@ -234,6 +234,24 @@
   background: #1c5677;
   border-color: #1c5677;
 }
+.btn.danger {
+  background: rgba(177, 67, 59, .08);
+  border-color: rgba(177, 67, 59, .32);
+  color: var(--site-bad, #b1433b);
+}
+.btn.danger:hover:not(:disabled) {
+  background: rgba(177, 67, 59, .16);
+  border-color: rgba(177, 67, 59, .5);
+}
+.edit-mode-control {
+  margin-top: 14px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(212, 135, 43, .08);
+  border: 1px solid rgba(212, 135, 43, .22);
+  font-size: 13px;
+  color: var(--site-brand, #143a52);
+}
 
 /* ===== Inputs ===== */
 .extractor-app input[type="text"],

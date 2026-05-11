@@ -118,6 +118,16 @@ initAiMCQFeature({
 const btnSelectAll = $('#selectAll');
 const btnClearAll = $('#clearAll');
 const activeNameEl = $('#activeName');
+const editModeToggle = $('#editModeToggle');
+let editMode = false;
+if (editModeToggle) {
+  editModeToggle.addEventListener('change', () => {
+    editMode = !!editModeToggle.checked;
+    renderFileTable();
+    const active = datasets[activeIdx];
+    if (active && active.parsedReady) renderQuestions(active);
+  });
+}
 const PUBLISH_SETTINGS_KEY = 'question_bank_publish_settings_v2';
 const PUBLISH_PASSWORD_KEY = 'question_bank_publish_password_v1';
 
@@ -1007,6 +1017,7 @@ function renderFileTable(){
       <td>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <button class="btn ${idx===activeIdx?'primary':''}" data-act="preview" data-idx="${idx}" data-testid="preview-dataset-btn">预览</button>
+          ${editMode ? `<button class="btn danger" data-act="delete-dataset" data-idx="${idx}" data-testid="delete-dataset-btn" title="删除该题库">删除</button>` : ''}
           <div style="min-width:240px">
             <div style="font-weight:600;word-break:break-word">${escapeHTML(d.name)}</div>
             ${d.err ? `<div class="meta" style="color:#b91c1c">Error: ${escapeHTML(d.err)}</div>` : ``}
@@ -1026,6 +1037,24 @@ function renderFileTable(){
 }
 
 fileTableBody.addEventListener('click', (e) => {
+  const delBtn = e.target.closest('button[data-act="delete-dataset"]');
+  if (delBtn) {
+    const idx = Number(delBtn.dataset.idx);
+    const d = datasets[idx];
+    if (!d) return;
+    if (!confirm(`确定删除题库「${d.name}」？此操作不可撤销。`)) return;
+    const wasActive = activeIdx === idx;
+    datasets.splice(idx, 1);
+    if (wasActive) {
+      activeIdx = datasets.length ? Math.min(idx, datasets.length - 1) : -1;
+    } else if (activeIdx > idx) {
+      activeIdx -= 1;
+    }
+    renderFileTable();
+    updateActiveUI();
+    updateExportButtons();
+    return;
+  }
   const btn = e.target.closest('button[data-act="preview"]');
   if (!btn) return;
   const idx = Number(btn.dataset.idx);
@@ -1279,6 +1308,7 @@ function renderQuestions(d){
       <div class="qhead">
         <span class="qid">Q${q.num}</span>
         <span class="meta">${typeLabel} · ${badge}</span>
+        ${editMode ? `<button class="btn danger" data-act="delete-question" data-qidx="${qIndex}" data-testid="delete-question-btn" title="删除此题">删除</button>` : ''}
       </div>
       <div class="qtext">${escapeHTML(q.qtext || '(无题干)')}</div>
       ${compareImg}
@@ -1610,6 +1640,20 @@ list.addEventListener('click', async (e) => {
         setTopStatus(`自动导入图片失败：${msg}。该站点可能允许浏览器下载，但阻止脚本直接读取；请改用下方上传框导入刚下载的图片。`, true);
       }
     }
+    return;
+  }
+
+  const delQBtn = e.target.closest('button[data-act="delete-question"]');
+  if (delQBtn) {
+    const qidx = Number(delQBtn.dataset.qidx);
+    const d = datasets[activeIdx];
+    if (!d || !Array.isArray(d.parsed) || !d.parsed[qidx]) return;
+    const qNum = d.parsed[qidx].num || (qidx + 1);
+    if (!confirm(`确定删除 Q${qNum}？此操作不可撤销。`)) return;
+    d.parsed.splice(qidx, 1);
+    renderQuestions(d);
+    renderFileTable();
+    updateExportButtons();
     return;
   }
 

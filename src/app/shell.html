@@ -6,6 +6,10 @@
       <p>
         这个页面只用于你电脑本地的题库生产流程：批量导入 <strong>.mhtml/.mht</strong>、截图 OCR、修正答案、去重融合、AI 转换，并导出 GitHub Pages 题库发布包。公开站点只负责做题，不包含这里的提取能力。
       </p>
+      <label class="inline-check edit-mode-control" data-testid="edit-mode-toggle-label">
+        <input id="editModeToggle" type="checkbox" data-testid="edit-mode-toggle">
+        <span>编辑模式（启用后显示「删除题库 / 删除单题」按钮）</span>
+      </label>
     </div>
     <div class="extractor-hero__status" data-testid="extractor-status-panel">
       <div class="status-card">
