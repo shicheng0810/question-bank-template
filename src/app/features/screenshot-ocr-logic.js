@@ -37,15 +37,22 @@ export function buildDeepSeekOcrRepairPayload(parsed, options = {}) {
     model: options.model || DEFAULT_MODEL,
     temperature: 0,
     response_format: { type: 'json_object' },
+    thinking: { type: 'enabled' },
+    reasoning_effort: options.reasoningEffort || 'high',
     messages: [
       {
         role: 'system',
         content: [
-          'You repair OCR text errors for aviation maintenance quiz questions.',
-          'Only correct obvious character recognition mistakes (O/0, l/1/I, m/rn, etc.).',
-          'Preserve original meaning. Do not paraphrase, translate, or reorder choices.',
-          'Return strict JSON only: {"question":"...","choices":["...","..."]}.',
-          'The choices array length MUST match the input choices length exactly.',
+          'You repair OCR errors for English aviation maintenance quiz questions.',
+          'CHARACTER repair: fix obvious misreads (O/0, l/1/I, m/rn), broken spacing, stray punctuation.',
+          'BOUNDARY repair: OCR sometimes splits a question wrong, treating a short connector word (e.g. "with", "in", "a", "are", "is", "the") as a separate choice when it actually belongs at the end of the question stem.',
+          'When the FIRST choice (index 0) is such a stray fragment:',
+          ' (a) append that fragment to the end of the question text (with a space),',
+          ' (b) set that choice slot to "" (empty string) to signal it should be dropped.',
+          'Do the same for the LAST choice if it is similarly a stray fragment.',
+          'Preserve original meaning. Do not paraphrase, translate, or reorder real choices.',
+          'Return STRICT JSON only: {"question":"...","choices":["...","..."]}.',
+          'choices length MUST equal the input choices length; use "" for slots you intentionally cleared.',
           'If the input is already clean, return it unchanged.',
         ].join(' '),
       },
@@ -90,11 +97,33 @@ export function applyDeepSeekOcrRepair(parsed, repair) {
     next.qtext = repair.question;
   }
   if (Array.isArray(repair.choices) && Array.isArray(parsed.choices)) {
-    next.choices = parsed.choices.map((choice, index) => {
+    const remapped = [];
+    let droppedCount = 0;
+    parsed.choices.forEach((choice, index) => {
       const candidate = repair.choices[index];
+      const isDropSignal = typeof candidate === 'string' && candidate.trim() === '';
+      if (isDropSignal) {
+        droppedCount += 1;
+        return;
+      }
       const text = typeof candidate === 'string' && candidate ? candidate : (choice && choice.text) || '';
-      return { ...choice, text };
+      remapped.push({ ...choice, text });
     });
+    if (remapped.length >= 2) {
+      next.choices = remapped;
+      if (droppedCount > 0) {
+        next.ocrMeta = {
+          ...(next.ocrMeta || {}),
+          boundaryFragmentsRemoved: droppedCount,
+        };
+      }
+    } else {
+      next.choices = parsed.choices.map((choice, index) => {
+        const candidate = repair.choices[index];
+        const text = typeof candidate === 'string' && candidate ? candidate : (choice && choice.text) || '';
+        return { ...choice, text };
+      });
+    }
   }
   return next;
 }

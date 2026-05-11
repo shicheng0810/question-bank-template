@@ -27,6 +27,8 @@ export function buildDeepSeekAnswerFillPayload(q, options = {}) {
     model: options.model || DEFAULT_MODEL,
     temperature: 0,
     response_format: { type: 'json_object' },
+    thinking: { type: 'enabled' },
+    reasoning_effort: options.reasoningEffort || 'high',
     messages: [
       {
         role: 'system',
