@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__hermes-ops__hermes_status",
+      "mcp__hermes-ops__cron_list",
+      "mcp__hermes-ops__longtask_status"
+    ]
+  }
+}

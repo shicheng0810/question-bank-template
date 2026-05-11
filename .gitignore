@@ -1,0 +1,32 @@
+# deps
+node_modules
+
+# build output
+dist
+.vite
+
+# coverage
+coverage
+
+# tests
+playwright-report
+test-results
+
+# tmp artifacts (项目根遗留的 tmp-*.png 截图等)
+tmp-*.png
+tmp-*.html
+*.tmp
+
+# env / secrets
+.env
+.env.local
+.env.*.local
+
+# os
+.DS_Store
+Thumbs.db
+
+# editors
+.idea
+.vscode
+*.swp

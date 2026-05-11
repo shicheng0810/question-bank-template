@@ -1,0 +1,33 @@
+[
+  {
+    "id": "sample-public",
+    "title": "Sample Public Bank",
+    "mode": "public",
+    "description": "Fixture bank for local development and E2E tests.",
+    "tags": ["sample", "public"],
+    "question_count": 5,
+    "has_images": true,
+    "json": "banks/sample-public.json"
+  },
+  {
+    "id": "wood-structures",
+    "title": "Wood Structures",
+    "mode": "public",
+    "description": "Aircraft wood structures practice questions.",
+    "tags": ["wood", "structures"],
+    "question_count": 0,
+    "has_images": false,
+    "json": "banks/wood-structures.json"
+  },
+  {
+    "id": "demo-protected",
+    "title": "Demo Protected Bank",
+    "mode": "protected",
+    "description": "Password-protected fixture bank for E2E tests.",
+    "tags": ["sample", "protected"],
+    "question_count": 5,
+    "has_images": true,
+    "payload": "banks/demo-protected.qbpack",
+    "password_hint": "sample-pass"
+  }
+]

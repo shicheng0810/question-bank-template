@@ -1,0 +1,26 @@
+[
+  {
+    "id": "sample-1",
+    "question": "What color is the sample sky?",
+    "choices": ["Blue", "Green", "Orange"],
+    "answer": 0,
+    "source": "Sample Source – Q1",
+    "tags": ["demo", "sample"]
+  },
+  {
+    "id": "sample-2",
+    "question": "Select the correct inspection steps.",
+    "choices": ["Check latch", "Skip checklist", "Record discrepancy"],
+    "answers": [0, 2],
+    "source": "Sample Source – Q2",
+    "section": "Inspection"
+  },
+  {
+    "id": "sample-3",
+    "question": "Fill the blank with the approved word.",
+    "question_html": "<p>The approved term is <input type=\"text\"></p>",
+    "type": "fill",
+    "blanks": [["approved"]],
+    "source": "Sample Source – Q3"
+  }
+]
