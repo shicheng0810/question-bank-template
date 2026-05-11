@@ -1,5 +1,6 @@
+import '../styles/site.css';
+import '../styles/extractor.css';
 import shellHtml from '../app/shell.html?raw';
-import '../app/core.js';
 
 const app = document.getElementById('app');
 
@@ -8,3 +9,5 @@ if (!app) {
 }
 
 app.innerHTML = shellHtml;
+
+await import('../app/core.js');

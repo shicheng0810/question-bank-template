@@ -11,6 +11,7 @@ coverage
 # tests
 playwright-report
 test-results
+.playwright-mcp
 
 # tmp artifacts (项目根遗留的 tmp-*.png 截图等)
 tmp-*.png
