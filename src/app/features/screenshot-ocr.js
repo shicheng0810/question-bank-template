@@ -7,6 +7,7 @@ import {
   repairOcrQuestionText,
 } from './screenshot-ocr-logic.js';
 
+export function init() {
   const refs = {
     imgFile: document.getElementById('imgFile'),
     ocrImagesBtn: document.getElementById('ocrImagesBtn'),
@@ -1303,4 +1304,4 @@ import {
 ScreenshotOCR.init();
 appContext.renderFileTable();
 appContext.updateActiveUI();
-
+}
