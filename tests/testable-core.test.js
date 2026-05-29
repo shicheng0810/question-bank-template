@@ -82,6 +82,23 @@ describe('question bank import helpers', () => {
     expect(arr[0].question).toBe('Hello');
   });
 
+  it('extracts LEGACY_BANK_PAYLOAD and ignores the empty RAW_QUESTION_BANK placeholder', () => {
+    // Single-file exports declare `let RAW_QUESTION_BANK = []` (filled at runtime) and hold the
+    // real questions in LEGACY_BANK_PAYLOAD. Re-importing such a file must skip the empty
+    // placeholder and find the populated array, so the export/import round-trip works.
+    const html = `
+      <html><body><script>
+        let RAW_QUESTION_BANK = [];
+        const LEGACY_BANK_PAYLOAD = [
+          {"id":"amt-1","question":"Stripper can be used to remove old dope.","choices":["True","False"],"answer":1,"source":"AMT205 – Q1"}
+        ];
+      </script></body></html>
+    `;
+    const arr = extractQuestionBankArrayFromText(html);
+    expect(arr).toHaveLength(1);
+    expect(arr[0].id).toBe('amt-1');
+  });
+
   it('escapes unsafe script content before template injection', () => {
     const raw = '{"question":"</script>\\u2028\\u2029"}';
     const safe = makeSafeJSONForScript(raw);
@@ -274,6 +291,45 @@ describe('export shaping and unique merge', () => {
 
     expect(merged).toHaveLength(2);
     expect(merged.map((item) => item.answer)).toEqual([0, 2]);
+  });
+
+  it('merges the same question across sources when only the distractor wording differs', () => {
+    // The same question imported from two quizzes often has reworded wrong options (OCR/source
+    // variation). Smart merge keys on stem + correct-answer text, so these still fuse.
+    const merged = buildUniqueMergedQuestionBankFromCollections([
+      [
+        {
+          id: 'a-1',
+          question: 'What must be done before repairing tears in fabric?',
+          choices: ['remove the finishes down to the clear dope', 'nothing, put a patch on', 'remove the paint but not the aluminum dope'],
+          answer: 0,
+          source: 'Lecture Quiz – Q2',
+        },
+      ],
+      [
+        {
+          id: 'b-4',
+          question: 'What must be done before repairing tears in fabric?',
+          choices: ['Remove the finishes down to the clear dope', 'remove the paint but not the aluminum pigment', 'put on a patch over blue paint'],
+          answer: 0,
+          source: 'Homework – Q4',
+        },
+      ],
+    ]);
+
+    expect(merged).toHaveLength(1);
+    expect(merged[0].source).toEqual(['Lecture Quiz – Q2', 'Homework – Q4']);
+  });
+
+  it('keeps same-stem questions separate when the correct answer text differs (generic stems)', () => {
+    // Guards the "Which statement is true?" trap: identical generic stem, identical answer index,
+    // but different correct-answer text — these are distinct questions and must not be merged.
+    const merged = buildUniqueMergedQuestionBankFromCollections([
+      [{ id: 'a', question: 'Which statement is true?', choices: ['cotton burns to ash', 'cotton melts', 'polyester burns to ash'], answer: 0, source: 'S1' }],
+      [{ id: 'b', question: 'Which statement is true?', choices: ['the seine knot attaches fabric', 'the paris knot attaches fabric', 'the splice knot attaches fabric'], answer: 0, source: 'S2' }],
+    ]);
+
+    expect(merged).toHaveLength(2);
   });
 });
 

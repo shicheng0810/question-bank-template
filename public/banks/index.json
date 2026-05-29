@@ -1,8 +1,19 @@
 [
   {
+    "id": "amt205",
+    "title": "AMT205 – Aircraft Coverings",
+    "mode": "public",
+    "description": "Aviation Maintenance Technician 205 — fabric covering quizzes, homework, and assignments (deduplicated & merged).",
+    "tags": ["AMT205", "coverings", "fabric"],
+    "question_count": 133,
+    "has_images": false,
+    "json": "banks/amt205.json"
+  },
+  {
     "id": "sample-public",
     "title": "Sample Public Bank",
     "mode": "public",
+    "deploy": false,
     "description": "Fixture bank for local development and E2E tests.",
     "tags": ["sample", "public"],
     "question_count": 5,
@@ -23,6 +34,7 @@
     "id": "demo-protected",
     "title": "Demo Protected Bank",
     "mode": "protected",
+    "deploy": false,
     "description": "Password-protected fixture bank for E2E tests.",
     "tags": ["sample", "protected"],
     "question_count": 5,

@@ -7,13 +7,11 @@ import legacyTemplate from '../templates/question-bank-template.html?raw';
 import qbpackSource from '../lib/qbpack.js?raw';
 import { encryptQuestionBankPayload } from '../lib/qbpack.js';
 import { slugifyBankId } from '../lib/site-package.js';
+import { safeJSONStringForScript as escapeJSONForScript } from '../lib/testable-core.js';
 
 function safeJSONStringForScript(value) {
-  return JSON.stringify(value)
-    .replace(/<\/script>/gi, '<\\/script>')
-    .replace(/<\//g, '<\\/')
-    .replaceAll(String.fromCharCode(0x2028), '\\u2028')
-    .replaceAll(String.fromCharCode(0x2029), '\\u2029');
+  // Single source of truth for the <script>-literal escaping lives in testable-core.js.
+  return escapeJSONForScript(JSON.stringify(value));
 }
 
 function normalizeManifestEntry(entry) {

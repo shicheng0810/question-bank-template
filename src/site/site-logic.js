@@ -247,11 +247,17 @@ export function makeRuntimeQuestionKey(question) {
   const blanks = Array.isArray(question && question.blanks)
     ? question.blanks.map((blank) => asArray(blank).map(normalizeForKey).filter(Boolean).sort())
     : [];
+  const isChoice = type === 'single' || type === 'multi';
+  // Smart merge (mirrors makeUniqueQuestionKey in testable-core.js): identify a question by
+  // stem + correct-answer text, independent of distractor wording, so the same question from
+  // two sources fuses even when its wrong options were reworded/reordered. Fall back to the
+  // full choice set only when the correct answer is unknown, to avoid over-merging.
+  const hasAnswer = isChoice && answerTexts.length > 0;
   return JSON.stringify({
     question: normalizeForKey((question && question.question) || stripHtml(question && question.question_html)),
     type,
-    choices: type === 'single' || type === 'multi' ? choices.slice().sort() : [],
-    answers: type === 'single' || type === 'multi' ? answerTexts : [],
+    choices: isChoice && !hasAnswer ? choices.slice().sort() : [],
+    answers: isChoice ? answerTexts : [],
     blanks,
     images: normalizeImageList(question && question.image).map(collapseForKey).sort(),
   });

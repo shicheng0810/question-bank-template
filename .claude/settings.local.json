@@ -3,7 +3,10 @@
     "allow": [
       "mcp__hermes-ops__hermes_status",
       "mcp__hermes-ops__cron_list",
-      "mcp__hermes-ops__longtask_status"
+      "mcp__hermes-ops__longtask_status",
+      "WebSearch",
+      "Bash(ssh -o ConnectTimeout=10 -o StrictHostKeyChecking=no ubuntu@129.146.118.223 'echo HOSTOK; uname -a; which claude; claude --version 2>&1 | head -5; ls -la ~/.claude/ 2>&1 | head -20')",
+      "Read(//Users/chris0810/Downloads/**)"
     ]
   }
 }

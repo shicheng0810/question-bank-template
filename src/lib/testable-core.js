@@ -48,41 +48,53 @@ export function extractBracketedJSONArray(source, startIndex){
   return '';
 }
 
+// Variable names that may hold an embedded question-bank array, in priority order.
+// LEGACY_BANK_PAYLOAD is the current single-file export format and must be tried first,
+// because those files also declare `let RAW_QUESTION_BANK = []` (an empty placeholder that
+// is filled at runtime) — matching that first would wrongly yield an empty bank.
+const QUESTION_BANK_TOKENS = [
+  'LEGACY_BANK_PAYLOAD',
+  'RAW_QUESTION_BANK',
+  'QUESTION_BANK',
+  'const data =',
+  'window.__QUESTION_BANK__',
+  'window.QUESTION_BANK',
+];
+
+function findQuestionBankArrayByTokens(source){
+  const text = String(source || '');
+  for (const token of QUESTION_BANK_TOKENS){
+    let from = 0;
+    let idx;
+    while ((idx = text.indexOf(token, from)) >= 0){
+      const arrText = extractBracketedJSONArray(text, idx);
+      const parsed = tryParseJSONArray(arrText);
+      // Skip empty placeholder declarations; keep scanning for a populated array.
+      if (parsed && parsed.length) return parsed;
+      from = idx + token.length;
+    }
+  }
+  return null;
+}
+
 export function extractQuestionBankArrayFromText(raw){
   const text = String(raw || '').trim();
   if (!text) throw new Error('文件为空');
 
   const direct = tryParseJSONArray(text);
-  if (direct) return direct;
+  if (direct && direct.length) return direct;
 
-  const candidates = [
-    'RAW_QUESTION_BANK',
-    'QUESTION_BANK',
-    'const data =',
-    'window.__QUESTION_BANK__',
-    'window.QUESTION_BANK'
-  ];
-  for (const token of candidates){
-    const idx = text.indexOf(token);
-    if (idx >= 0){
-      const arrText = extractBracketedJSONArray(text, idx);
-      const parsed = tryParseJSONArray(arrText);
-      if (parsed) return parsed;
-    }
-  }
+  const fromText = findQuestionBankArrayByTokens(text);
+  if (fromText) return fromText;
 
   const scripts = Array.from(new DOMParser().parseFromString(text, 'text/html').querySelectorAll('script'));
   for (const script of scripts){
-    const body = script.textContent || '';
-    for (const token of candidates){
-      const idx = body.indexOf(token);
-      if (idx >= 0){
-        const arrText = extractBracketedJSONArray(body, idx);
-        const parsed = tryParseJSONArray(arrText);
-        if (parsed) return parsed;
-      }
-    }
+    const fromScript = findQuestionBankArrayByTokens(script.textContent || '');
+    if (fromScript) return fromScript;
   }
+
+  // A directly-parsed but empty array is still a valid (empty) bank.
+  if (direct) return direct;
 
   throw new Error('未能从该文件中定位题库 JSON 数组');
 }
@@ -269,7 +281,9 @@ export function flattenSourceList(src){
 }
 
 export function normalizeTextForMerge(v){
-  return cleanHTMLString(String(v || '')).replace(/\s+/g, ' ').trim();
+  // Case-insensitive: matches the runtime players (site-logic normalizeForKey + the legacy
+  // template normText both lowercase), so export-time dedup and load-time dedup agree.
+  return cleanHTMLString(String(v || '')).replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
 export function hashStringForMerge(str){
@@ -341,11 +355,18 @@ export function makeUniqueQuestionKey(item){
   const blanks = Array.isArray(item && item.blanks)
     ? item.blanks.map(arr => Array.isArray(arr) ? arr.map(normalizeTextForMerge).filter(Boolean).sort() : [])
     : [];
+  const isChoice = type === 'single' || type === 'multi';
+  // Smart merge: a question's identity is its stem + correct-answer text, independent of
+  // distractor wording. The same question imported from two sources often has reworded /
+  // reordered wrong options (OCR or source variation); those should still fuse. We only
+  // fall back to the full choice set when the correct answer is unknown, so that distinct
+  // unanswered questions sharing a stem are not over-merged.
+  const hasAnswer = isChoice && answerTexts.length > 0;
   return JSON.stringify({
     q: normalizeTextForMerge(item && item.question),
     type,
-    choices: type === 'single' || type === 'multi' ? choices.slice().sort() : [],
-    answers: type === 'single' || type === 'multi' ? answerTexts : [],
+    choices: isChoice && !hasAnswer ? choices.slice().sort() : [],
+    answers: isChoice ? answerTexts : [],
     blanks,
     images: normalizeImageFingerprints(item && item.image),
   });

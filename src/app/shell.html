@@ -73,7 +73,7 @@
         </div>
         <div class="row row--compact">
           <input id="ocrLang" type="text" value="eng" class="small" data-testid="ocr-lang-input">
-          <span class="meta">OCR 语言（例：eng / chi_sim / eng+chi_sim）</span>
+          <span class="meta">OCR 语言（纯英文截图建议 eng；只有含中文时再用 eng+chi_sim）</span>
         </div>
         <div class="row row--compact">
           <label class="meta inline-check">
@@ -88,6 +88,30 @@
             <input id="ocrAiRepair" type="checkbox" data-testid="ocr-ai-repair"> 使用 DeepSeek V4 Flash 二次修复 OCR 文本
           </label>
           <span class="meta">只发送 OCR 文本和选项，不发送截图；不会改变正确答案索引。</span>
+        </div>
+        <div class="row row--compact">
+          <label class="meta inline-check">
+            <input id="ocrRapidOcr" type="checkbox" data-testid="ocr-rapidocr"> 使用 RapidOCR PP-OCRv5 本地识别
+          </label>
+          <span class="meta">需先运行 <code>npm run rapidocr:server</code>；失败时自动回退浏览器 Tesseract OCR。</span>
+        </div>
+        <div class="row row--compact">
+          <label class="meta inline-check">
+            <input id="ocrOpenAiVision" type="checkbox" data-testid="ocr-openai-vision"> 使用本地 OpenAI Vision 直接识别截图
+          </label>
+          <label class="meta inline-check">
+            <input id="ocrOpenAiFallbackOnly" type="checkbox" checked data-testid="ocr-openai-fallback-only"> 仅在本地 OCR 弱时调用（省钱）
+          </label>
+        </div>
+        <div class="row row--compact">
+          <input id="ocrOpenAiModel" type="text" value="gpt-5.4-mini" class="small" data-testid="ocr-openai-model">
+          <input id="ocrOpenAiFallbackModel" type="text" value="gpt-5.4-nano" class="small" data-testid="ocr-openai-fallback-model">
+          <select id="ocrOpenAiDetail" class="small" data-testid="ocr-openai-detail">
+            <option value="high" selected>high detail</option>
+            <option value="auto">auto detail</option>
+            <option value="low">low detail</option>
+          </select>
+          <span class="meta">需要本地 <code>OPENAI_API_KEY</code>；Key 不进入浏览器。</span>
         </div>
         <div class="row row--compact">
           <input id="ocrAiApiKey" type="password" placeholder="DEEPSEEK_API_KEY" style="min-width:300px" data-testid="ocr-ai-api-key">
@@ -150,8 +174,8 @@
           </div>
           <div class="row row--toolbar">
             <button class="btn" id="exportActiveBtn" disabled data-testid="export-active-btn">导出当前文件 JSON</button>
-            <button class="btn primary" id="exportAllBtn" disabled data-testid="export-all-btn">导出全部合并 JSON</button>
-            <button class="btn" id="exportUniqueBtn" disabled data-testid="export-unique-btn">导出去重融合 JSON</button>
+            <button class="btn" id="exportAllBtn" disabled data-testid="export-all-btn">导出全部题目 JSON（未去重）</button>
+            <button class="btn primary" id="exportUniqueBtn" disabled data-testid="export-unique-btn">导出去重融合 JSON（推荐）</button>
           </div>
         </div>
 

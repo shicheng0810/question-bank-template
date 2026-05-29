@@ -1,11 +1,22 @@
 import { appContext } from '../core.js';
 import {
   applyDeepSeekOcrRepair,
+  buildRapidOcrDebugMeta,
   buildDeepSeekOcrRepairPayload,
+  findUnlabeledChoiceRowSplit,
+  ocrBinaryPixelValue,
   parseDeepSeekOcrRepairResponse,
   repairOcrChoiceText,
   repairOcrQuestionText,
 } from './screenshot-ocr-logic.js';
+import {
+  DEFAULT_OPENAI_VISION_DETAIL,
+  DEFAULT_OPENAI_VISION_FALLBACK_MODEL,
+  DEFAULT_OPENAI_VISION_MODEL,
+  DEFAULT_OPENAI_VISION_REASONING,
+  openAiVisionExtractionToParsedQuestion,
+  shouldUseOpenAiVisionFallback,
+} from './openai-vision-ocr-logic.js';
 
 export function init() {
   const refs = {
@@ -21,7 +32,13 @@ export function init() {
     ocrAiApiKey: document.getElementById('ocrAiApiKey'),
     ocrAiRememberKey: document.getElementById('ocrAiRememberKey'),
     ocrAiBaseUrl: document.getElementById('ocrAiBaseUrl'),
-    ocrAiModel: document.getElementById('ocrAiModel')
+    ocrAiModel: document.getElementById('ocrAiModel'),
+    ocrRapidOcr: document.getElementById('ocrRapidOcr'),
+    ocrOpenAiVision: document.getElementById('ocrOpenAiVision'),
+    ocrOpenAiFallbackOnly: document.getElementById('ocrOpenAiFallbackOnly'),
+    ocrOpenAiModel: document.getElementById('ocrOpenAiModel'),
+    ocrOpenAiFallbackModel: document.getElementById('ocrOpenAiFallbackModel'),
+    ocrOpenAiDetail: document.getElementById('ocrOpenAiDetail')
   };
 
   const SETTINGS_KEY = 'question_bank_image_ocr_settings_v2';
@@ -141,13 +158,27 @@ export function init() {
         }
       });
 
-      [refs.ocrLang, refs.ocrPreferColor, refs.ocrDebug, refs.ocrAiRepair, refs.ocrAiRememberKey, refs.ocrAiBaseUrl, refs.ocrAiModel].forEach(el => {
+      [
+        refs.ocrLang,
+        refs.ocrPreferColor,
+        refs.ocrDebug,
+        refs.ocrAiRepair,
+        refs.ocrAiRememberKey,
+        refs.ocrAiBaseUrl,
+        refs.ocrAiModel,
+        refs.ocrRapidOcr,
+        refs.ocrOpenAiVision,
+        refs.ocrOpenAiFallbackOnly,
+        refs.ocrOpenAiModel,
+        refs.ocrOpenAiFallbackModel,
+        refs.ocrOpenAiDetail
+      ].forEach(el => {
         if (!el) return;
         el.addEventListener('change', () => {
           this.saveSettings();
         });
       });
-      [refs.ocrAiBaseUrl, refs.ocrAiModel].forEach(el => {
+      [refs.ocrAiBaseUrl, refs.ocrAiModel, refs.ocrOpenAiModel, refs.ocrOpenAiFallbackModel].forEach(el => {
         if (!el) return;
         el.addEventListener('input', () => {
           this.saveSettings();
@@ -169,6 +200,12 @@ export function init() {
         if (refs.ocrAiRepair) refs.ocrAiRepair.checked = !!raw.aiRepair;
         if (refs.ocrAiBaseUrl) refs.ocrAiBaseUrl.value = raw.aiBaseUrl || DEFAULT_DEEPSEEK_BASE_URL;
         if (refs.ocrAiModel) refs.ocrAiModel.value = raw.aiModel || DEFAULT_DEEPSEEK_MODEL;
+        if (refs.ocrRapidOcr) refs.ocrRapidOcr.checked = !!raw.rapidOcr;
+        if (refs.ocrOpenAiVision) refs.ocrOpenAiVision.checked = !!raw.openAiVision;
+        if (refs.ocrOpenAiFallbackOnly) refs.ocrOpenAiFallbackOnly.checked = raw.openAiFallbackOnly !== false;
+        if (refs.ocrOpenAiModel) refs.ocrOpenAiModel.value = raw.openAiModel || DEFAULT_OPENAI_VISION_MODEL;
+        if (refs.ocrOpenAiFallbackModel) refs.ocrOpenAiFallbackModel.value = raw.openAiFallbackModel || DEFAULT_OPENAI_VISION_FALLBACK_MODEL;
+        if (refs.ocrOpenAiDetail) refs.ocrOpenAiDetail.value = raw.openAiDetail || DEFAULT_OPENAI_VISION_DETAIL;
         const savedKey = localStorage.getItem(DEEPSEEK_KEY_STORAGE) || '';
         if (refs.ocrAiApiKey) refs.ocrAiApiKey.value = savedKey;
         if (refs.ocrAiRememberKey) refs.ocrAiRememberKey.checked = !!savedKey;
@@ -184,7 +221,13 @@ export function init() {
           debug: settings.debug,
           aiRepair: settings.aiRepair,
           aiBaseUrl: settings.aiBaseUrl,
-          aiModel: settings.aiModel
+          aiModel: settings.aiModel,
+          rapidOcr: settings.rapidOcr,
+          openAiVision: settings.openAiVision,
+          openAiFallbackOnly: settings.openAiFallbackOnly,
+          openAiModel: settings.openAiModel,
+          openAiFallbackModel: settings.openAiFallbackModel,
+          openAiDetail: settings.openAiDetail
         }));
         if (refs.ocrAiRememberKey && refs.ocrAiRememberKey.checked && settings.aiApiKey) {
           localStorage.setItem(DEEPSEEK_KEY_STORAGE, settings.aiApiKey);
@@ -202,7 +245,14 @@ export function init() {
         aiRepair: !!(refs.ocrAiRepair && refs.ocrAiRepair.checked),
         aiApiKey: (refs.ocrAiApiKey && refs.ocrAiApiKey.value ? refs.ocrAiApiKey.value.trim() : ''),
         aiBaseUrl: (refs.ocrAiBaseUrl && refs.ocrAiBaseUrl.value ? refs.ocrAiBaseUrl.value.trim() : '') || DEFAULT_DEEPSEEK_BASE_URL,
-        aiModel: (refs.ocrAiModel && refs.ocrAiModel.value ? refs.ocrAiModel.value.trim() : '') || DEFAULT_DEEPSEEK_MODEL
+        aiModel: (refs.ocrAiModel && refs.ocrAiModel.value ? refs.ocrAiModel.value.trim() : '') || DEFAULT_DEEPSEEK_MODEL,
+        rapidOcr: !!(refs.ocrRapidOcr && refs.ocrRapidOcr.checked),
+        openAiVision: !!(refs.ocrOpenAiVision && refs.ocrOpenAiVision.checked),
+        openAiFallbackOnly: !!(refs.ocrOpenAiFallbackOnly && refs.ocrOpenAiFallbackOnly.checked),
+        openAiModel: (refs.ocrOpenAiModel && refs.ocrOpenAiModel.value ? refs.ocrOpenAiModel.value.trim() : '') || DEFAULT_OPENAI_VISION_MODEL,
+        openAiFallbackModel: (refs.ocrOpenAiFallbackModel && refs.ocrOpenAiFallbackModel.value ? refs.ocrOpenAiFallbackModel.value.trim() : '') || DEFAULT_OPENAI_VISION_FALLBACK_MODEL,
+        openAiDetail: (refs.ocrOpenAiDetail && refs.ocrOpenAiDetail.value ? refs.ocrOpenAiDetail.value.trim() : '') || DEFAULT_OPENAI_VISION_DETAIL,
+        openAiReasoningEffort: DEFAULT_OPENAI_VISION_REASONING
       };
     },
 
@@ -254,6 +304,22 @@ export function init() {
         }
         if (q.ocrMeta.aiRepairUsed) debugLines.push(`aiRepair: used${q.ocrMeta.aiRepairModel ? ` (${q.ocrMeta.aiRepairModel})` : ''}`);
         if (q.ocrMeta.aiRepairError) debugLines.push(`aiRepairError: ${q.ocrMeta.aiRepairError}`);
+        if (q.ocrMeta.rapidOcrUsed) debugLines.push(`rapidOcr: used${q.ocrMeta.rapidOcrModel ? ` (${q.ocrMeta.rapidOcrModel})` : ''}`);
+        if (Number.isFinite(q.ocrMeta.rapidOcrLineCount) || Number.isFinite(q.ocrMeta.rapidOcrWordCount)) {
+          debugLines.push(`rapidOcrCounts: lines=${Number.isFinite(q.ocrMeta.rapidOcrLineCount) ? q.ocrMeta.rapidOcrLineCount : '?'} words=${Number.isFinite(q.ocrMeta.rapidOcrWordCount) ? q.ocrMeta.rapidOcrWordCount : '?'}`);
+        }
+        if (Array.isArray(q.ocrMeta.rapidOcrLineText) && q.ocrMeta.rapidOcrLineText.length) {
+          debugLines.push(`rapidOcrLineText:\n${q.ocrMeta.rapidOcrLineText.join('\n')}`);
+        }
+        if (Array.isArray(q.ocrMeta.rapidOcrWordText) && q.ocrMeta.rapidOcrWordText.length) {
+          debugLines.push(`rapidOcrWordText:\n${q.ocrMeta.rapidOcrWordText.join(' | ')}`);
+        }
+        if (q.ocrMeta.rapidOcrError) debugLines.push(`rapidOcrError: ${q.ocrMeta.rapidOcrError}`);
+        if (q.ocrMeta.aiVisionUsed) debugLines.push(`openAiVision: used (${q.ocrMeta.aiVisionModel || 'model unknown'}) confidence=${this.round(q.ocrMeta.aiVisionConfidence)}`);
+        if (q.ocrMeta.aiVisionError) debugLines.push(`openAiVisionError: ${q.ocrMeta.aiVisionError}`);
+        if (Array.isArray(q.ocrMeta.aiVisionReviewReasons) && q.ocrMeta.aiVisionReviewReasons.length) {
+          debugLines.push(`openAiVisionReview: ${q.ocrMeta.aiVisionReviewReasons.join('；')}`);
+        }
         if (q.ocrMeta.rawText) debugLines.push(`rawText:\n${q.ocrMeta.rawText}`);
         details.innerHTML = `<summary>OCR 调试信息</summary><pre>${appContext.escapeHTML(debugLines.join('\n\n'))}</pre>`;
         card.appendChild(details);
@@ -373,10 +439,42 @@ export function init() {
       try{
         const settings = this.getSettings();
         const dataUrl = await this.fileToDataURL(d.file);
+
+        if (settings.openAiVision && !settings.openAiFallbackOnly) {
+          try {
+            d.parsed = await this.recognizeWithOpenAiVision(dataUrl, settings, { fallback: false });
+            d.parsedReady = true;
+            return d;
+          } catch (visionError) {
+            this.setStatus(`OpenAI Vision 失败，回退本地 OCR：${String(visionError && visionError.message ? visionError.message : visionError).slice(0, 120)}`, true);
+          }
+        }
+
         const imageInfo = await this.loadImageAndCanvas(dataUrl);
-        const worker = await this.ensureWorker(settings);
-        const recognition = await this.recognizeBest(worker, imageInfo, settings);
-        const parsed = await this.parseRecognizedScreenshot(recognition && recognition.data ? recognition.data : {}, imageInfo, dataUrl, settings, d, recognition);
+        let parsed = null;
+        let rapidOcrError = null;
+        if (settings.rapidOcr) {
+          try {
+            const rapidRecognition = await this.recognizeWithRapidOcr(dataUrl);
+            parsed = await this.parseRecognizedScreenshot(rapidRecognition && rapidRecognition.data ? rapidRecognition.data : {}, imageInfo, dataUrl, settings, d, rapidRecognition);
+          } catch (error) {
+            rapidOcrError = error;
+            this.setStatus(`RapidOCR 失败，回退浏览器 OCR：${String(error && error.message ? error.message : error).slice(0, 120)}`, true);
+          }
+        }
+        if (!parsed) {
+          const worker = await this.ensureWorker(settings);
+          const recognition = await this.recognizeBest(worker, imageInfo, settings);
+          parsed = await this.parseRecognizedScreenshot(recognition && recognition.data ? recognition.data : {}, imageInfo, dataUrl, settings, d, recognition);
+          if (rapidOcrError) parsed = this.annotateRapidOcrError(parsed, rapidOcrError);
+        }
+        if (settings.openAiVision && settings.openAiFallbackOnly && shouldUseOpenAiVisionFallback(parsed)) {
+          try {
+            parsed = await this.recognizeWithOpenAiVision(dataUrl, settings, { fallback: true });
+          } catch (visionError) {
+            parsed = this.annotateOpenAiVisionError(parsed, visionError);
+          }
+        }
         d.parsed = parsed;
         d.parsedReady = true;
       } catch (e){
@@ -389,6 +487,82 @@ export function init() {
       appContext.renderFileTable();
       if (i === appContext.activeIdx) appContext.updateActiveUI();
       return d;
+    },
+
+    async recognizeWithRapidOcr(dataUrl){
+      this.setStatus('RapidOCR PP-OCRv5 正在本地识别截图…', false);
+      const res = await fetch('/api/local/rapidocr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageDataUrl: dataUrl })
+      });
+      if (!res.ok){
+        const text = await res.text().catch(() => '');
+        throw new Error(`RapidOCR proxy error ${res.status}: ${text.slice(0, 220)}`);
+      }
+      const body = await res.json();
+      if (!body || !body.data) throw new Error('RapidOCR proxy returned no OCR data');
+      return {
+        data: body.data,
+        rapidOcr: true,
+        engine: body.engine || 'rapidocr',
+        model: body.model || '',
+        variant: body.model || 'rapidocr-ppocrv5'
+      };
+    },
+
+    async recognizeWithOpenAiVision(dataUrl, settings, opts){
+      const fallback = !!(opts && opts.fallback);
+      const model = fallback
+        ? (settings.openAiFallbackModel || DEFAULT_OPENAI_VISION_FALLBACK_MODEL)
+        : (settings.openAiModel || DEFAULT_OPENAI_VISION_MODEL);
+      this.setStatus(`OpenAI Vision 正在识别截图（${model}）…`, false);
+      const res = await fetch('/api/openai/vision-ocr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          imageDataUrl: dataUrl,
+          model,
+          detail: settings.openAiDetail || DEFAULT_OPENAI_VISION_DETAIL,
+          reasoningEffort: settings.openAiReasoningEffort || DEFAULT_OPENAI_VISION_REASONING
+        })
+      });
+      if (!res.ok){
+        const text = await res.text().catch(() => '');
+        throw new Error(`OpenAI Vision proxy error ${res.status}: ${text.slice(0, 220)}`);
+      }
+      const body = await res.json();
+      if (!body || !body.extraction) throw new Error('OpenAI Vision proxy returned no extraction');
+      const parsed = openAiVisionExtractionToParsedQuestion(body.extraction, {
+        dataUrl,
+        debug: settings.debug,
+        model: body.model || model
+      });
+      return [parsed];
+    },
+
+    annotateOpenAiVisionError(parsed, error){
+      const message = String(error && error.message ? error.message : error).slice(0, 300);
+      return (Array.isArray(parsed) ? parsed : []).map(q => ({
+        ...q,
+        ocrMeta: {
+          ...(q && q.ocrMeta || {}),
+          aiVisionUsed: false,
+          aiVisionError: message
+        }
+      }));
+    },
+
+    annotateRapidOcrError(parsed, error){
+      const message = String(error && error.message ? error.message : error).slice(0, 300);
+      return (Array.isArray(parsed) ? parsed : []).map(q => ({
+        ...q,
+        ocrMeta: {
+          ...(q && q.ocrMeta || {}),
+          rapidOcrUsed: false,
+          rapidOcrError: message
+        }
+      }));
     },
 
     async ensureLib(){
@@ -474,15 +648,7 @@ export function init() {
       const img = ctx.getImageData(0, 0, out.width, out.height);
       const data = img.data;
       for (let i = 0; i < data.length; i += 4){
-        const r = data[i];
-        const g = data[i + 1];
-        const b = data[i + 2];
-        const lum = 0.299 * r + 0.587 * g + 0.114 * b;
-        const max = Math.max(r, g, b);
-        const min = Math.min(r, g, b);
-        const sat = max ? (max - min) / max : 0;
-        const ink = lum < 232 || (sat > 0.08 && lum < 245);
-        const v = ink ? 0 : 255;
+        const v = ocrBinaryPixelValue(data[i], data[i + 1], data[i + 2]);
         data[i] = v;
         data[i + 1] = v;
         data[i + 2] = v;
@@ -624,7 +790,7 @@ export function init() {
         blockCount: blocks.length,
         psm: recognition && recognition.psm,
         variant: recognition && recognition.variant
-      } : {});
+      } : {}, buildRapidOcrDebugMeta(recognition));
 
       if (parsed.kind === 'choice'){
         return [{
@@ -673,7 +839,8 @@ export function init() {
         return {
           text,
           bbox,
-          conf: Number.isFinite(confRaw) ? confRaw : 0
+          conf: Number.isFinite(confRaw) ? confRaw : 0,
+          forceSpaceBefore: !!(word && word.forceSpaceBefore)
         };
       }).filter(Boolean);
     },
@@ -763,7 +930,7 @@ export function init() {
         ws.forEach(w => {
           if (prev){
             const gap = w.bbox.x0 - prev.x1;
-            text += gap > Math.max(6, prev.h * 0.35) ? ' ' : '';
+            text += w.forceSpaceBefore || gap > Math.max(6, prev.h * 0.35) ? ' ' : '';
           }
           text += w.text;
           prev = w.bbox;
@@ -1199,31 +1366,9 @@ export function init() {
     },
 
     findTrailingChoiceRows(rows, imageInfo){
-      const cleanRows = Array.from(rows || []).filter(row => row && row.bbox && this.normalizeText(row.text));
-      if (cleanRows.length < 3) return null;
-      const imageWidth = Math.max(1, Number(imageInfo && imageInfo.width) || 1);
-      let best = null;
-      for (let start = 1; start <= cleanRows.length - 2; start++){
-        const optionRows = cleanRows.slice(start);
-        if (optionRows.length < 2 || optionRows.length > 5) continue;
-        const x0s = optionRows.map(row => Number(row.bbox && row.bbox.x0) || 0);
-        const maxDx = Math.max.apply(null, x0s) - Math.min.apply(null, x0s);
-        const avgLen = optionRows.reduce((sum, row) => sum + this.normalizeText(row.text).length, 0) / optionRows.length;
-        const maxLen = Math.max.apply(null, optionRows.map(row => this.normalizeText(row.text).length));
-        const looksGood = optionRows.every(row => this.looksLikeChoiceLine(row.text) || this.normalizeText(row.text).length <= 90);
-        if (!looksGood) continue;
-        if (maxDx > Math.max(36, imageWidth * 0.06)) continue;
-        if (maxLen > 110) continue;
-        const score = optionRows.length * 20 - maxDx - avgLen * 0.1 - start * 2;
-        if (!best || score > best.score){
-          best = {
-            score,
-            questionRows: cleanRows.slice(0, start),
-            optionRows
-          };
-        }
-      }
-      return best;
+      return findUnlabeledChoiceRowSplit(rows, {
+        imageWidth: imageInfo && imageInfo.width
+      });
     },
 
     joinWords(words){
@@ -1233,7 +1378,7 @@ export function init() {
       ws.forEach(word => {
         if (prev){
           const gap = word.bbox.x0 - prev.x1;
-          out += gap > Math.max(6, prev.h * 0.35) ? ' ' : '';
+          out += word.forceSpaceBefore || gap > Math.max(6, prev.h * 0.35) ? ' ' : '';
         }
         out += word.text;
         prev = word.bbox;
