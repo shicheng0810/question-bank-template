@@ -154,17 +154,12 @@
         <option value="zh">中文</option>
         <option value="es">Español</option>
       </select>
+      <button class="btn" id="guide-btn" onclick="openGuide()" data-testid="guide-open-btn" data-i18n="guide_summary">Button Guide</button>
       <button class="btn" id="tutorial-help-btn" onclick="openTutorial()" data-testid="tutorial-help-btn"
               title="Tutorial" aria-label="Open tutorial"
               style="width:32px;height:32px;border-radius:50%;padding:0;font-weight:700;line-height:1">?</button>
     </label>
   </div>
-  <details class="filter-panel" id="button-guide">
-    <summary class="btn" data-i18n="guide_summary">Button Guide</summary>
-    <div class="filter-content">
-      <ul class="meta" id="guide-list" style="margin:0;padding-left:18px;line-height:1.9"></ul>
-    </div>
-  </details>
 
   <details class="filter-panel">
     <summary class="btn" data-i18n="filter_summary">Filter Question Banks</summary>
@@ -203,7 +198,21 @@
     .tut-actions{display:flex;gap:8px;margin-top:16px;align-items:center}
     .tut-actions .spacer{flex:1}
     .tut-highlight{position:relative;z-index:95;box-shadow:0 0 0 3px var(--brand),0 0 0 7px rgba(37,99,235,.25)!important;border-radius:8px}
+    #qb-guide{align-items:center}
+    .guide-card{max-width:640px}
+    .guide-card ul{margin:12px 0 0;padding-left:18px;line-height:1.9;overflow:auto;max-height:62vh}
   </style>
+  <!-- 按钮说明弹窗（点 Button Guide 打开；点遮罩或 ✕ 关闭） -->
+  <div class="tut-overlay" id="qb-guide" hidden data-testid="qb-guide" onclick="if(event.target===this)closeGuide()">
+    <div class="tut-card guide-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+        <h2 data-i18n="guide_summary" style="margin:0;font-size:1.15rem">Button Guide</h2>
+        <button class="btn" onclick="closeGuide()" data-testid="guide-close-btn" aria-label="Close" style="width:32px;height:32px;border-radius:50%;padding:0;line-height:1">✕</button>
+      </div>
+      <ul class="meta" id="guide-list"></ul>
+    </div>
+  </div>
+
   <div class="tut-overlay" id="qb-tutorial" hidden data-testid="qb-tutorial">
     <div class="tut-card">
       <div class="tut-step" id="tut-step-label">Step 1</div>
@@ -1500,6 +1509,16 @@
       setTimeout(maybeStartTutorial, 350);
     }
 
+    /* ------------------ 按钮说明弹窗 ------------------ */
+    function openGuide(){
+      const overlay = document.getElementById("qb-guide");
+      if (overlay) overlay.hidden = false;
+    }
+    function closeGuide(){
+      const overlay = document.getElementById("qb-guide");
+      if (overlay) overlay.hidden = true;
+    }
+
     /* ------------------ 新手教程（首次打开，英文，可 Skip） ------------------ */
     const TUTORIAL_KEY = "qb_tutorial_done_v1"; // 故意不带命名空间：同域名任意题库页看过一次即可
     const TUTORIAL_STEPS = [
@@ -1508,7 +1527,7 @@
         sel: null },
       { title: "Pick your question banks",
         body: "Open “Filter Question Banks”, tick one or several question sets (you can combine multiple banks and practice them together), then press Confirm.",
-        sel: ".filter-panel:not(#button-guide)" },
+        sel: ".filter-panel" },
       { title: "Shuffle & start",
         body: "“Randomize + Reset” shuffles the questions in the current scope and clears this round's selections.",
         sel: "#btn-random" },
