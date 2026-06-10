@@ -230,7 +230,7 @@
   <script>
     // 每个题库一个存储命名空间：发布到同一域名（如 Cloudflare Pages）的多个题库页
     // 互不串档。构建/导出时注入题库 id；旧导出未注入时回退到共享的 "amt"。
-    const RAW_STORAGE_NS = "local";
+    const RAW_STORAGE_NS = "remote";
     // let 而非 const：local.html（本地导入模式）会在启动时按 ?bank= 参数重设命名空间
     let STORAGE_NS = (RAW_STORAGE_NS && RAW_STORAGE_NS.indexOf("__") !== 0 && /^[A-Za-z0-9_-]{1,64}$/.test(RAW_STORAGE_NS)) ? RAW_STORAGE_NS : "amt";
     let STAR_KEY=STORAGE_NS+"_starred_questions";
@@ -395,7 +395,7 @@
     }
 
     /* ------------------ 数据区 ------------------ */
-    const LEGACY_BANK_PAYLOAD = {"mode":"local-bank"};
+    const LEGACY_BANK_PAYLOAD = {"mode":"remote"};
     let RAW_QUESTION_BANK = [];
     let QUESTION_BANK = [];
     let ID_ALIAS = {};
