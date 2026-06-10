@@ -619,12 +619,8 @@
         key += "|correct:" + correct.join("||");
       }
 
-      // Prevent silent merging of visually distinct questions that reuse the same
-      // stem/choices/answer but carry different reference images.
-      const imgList = collectImageList(q);
-      if(imgList.length){
-        key += "|images:" + imgList.map(img=>fnv1a64(String(img))).join(",");
-      }
+      // 注意：key 不含图片指纹（与导出端 makeUniqueQuestionKey 同步）——同题一边有图
+      // 一边缺图也应合并，图片在合并时取并集。
       return key;
     }
 
@@ -697,6 +693,39 @@
 
         // alias for old ids
         if(q0.id) alias[String(q0.id)] = canon.id;
+      }
+
+      // 二段合并（与导出端 buildUniqueMergedQuestionBankFromCollections 同步）：
+      // 主 key 对「有答案/无答案」不对称，同题一份带答案一份不带会双份并存。把无答案的
+      // 选择题按 题干+完整选项集合 匹配有答案的同题：恰好一条则吸收进去；多条（同干同
+      // 选项不同答案）保持独立。
+      const shapeKey = (q)=>{
+        const cs = (Array.isArray(q.choices)?q.choices:[]).map(normText).sort();
+        return normText(q.question) + "||" + cs.join("||");
+      };
+      const hasAns = (q)=> Array.isArray(q.answers) ? q.answers.length>0 : (Number.isFinite(Number(q.answer)) && Number(q.answer)>=0);
+      const isChoiceQ = (q)=> Array.isArray(q.choices) && q.choices.length>0 && !(q.type==="fill"||Array.isArray(q.blanks));
+      const ansByShape = new Map();
+      for(const q of out){
+        if(isChoiceQ(q) && hasAns(q)){
+          const k = shapeKey(q);
+          if(!ansByShape.has(k)) ansByShape.set(k, []);
+          ansByShape.get(k).push(q);
+        }
+      }
+      for(let i=out.length-1;i>=0;i--){
+        const q = out[i];
+        if(!isChoiceQ(q) || hasAns(q)) continue;
+        const targets = ansByShape.get(shapeKey(q)) || [];
+        if(targets.length !== 1) continue;
+        const t = targets[0];
+        t.banks = mergeUnique(t.banks, q.banks);
+        t.source = mergeUnique(Array.isArray(t.source)?t.source:[t.source], Array.isArray(q.source)?q.source:[q.source]);
+        setImageField(t, mergeUnique(collectImageList(t), collectImageList(q)));
+        if(!t.question_html && q.question_html) t.question_html = q.question_html;
+        for(const k0 of Object.keys(alias)) if(alias[k0] === q.id) alias[k0] = t.id;
+        alias[q.id] = t.id;
+        out.splice(i, 1);
       }
 
       // Normalize: if only one source, keep as string (backward friendly)
