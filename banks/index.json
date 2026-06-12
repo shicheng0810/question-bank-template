@@ -27,6 +27,7 @@
     "description": "Pick any combination of banks and practice them together.",
     "tags": [],
     "question_count": 1251,
-    "has_images": false
+    "has_images": true,
+    "json": "banks/all-banks.json"
   }
 ]
