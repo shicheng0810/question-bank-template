@@ -41,8 +41,21 @@
   <p class="sub" data-i18n="sub">Pick a bank to start — every question on one page, submit one by one; wrong answers and stars are saved on this device.</p>
   <div class="grid" data-testid="bank-list">
 
+    <a class="card" href="player.html?bank=fuel-system" data-bank-id="fuel-system" data-testid="bank-card">
+      <div class="card-head">
+        <h2>Airframe Fuel System</h2>
+        <span class="pill " data-i18n="badge_public">Public</span>
+      </div>
+      
+      <div class="meta-row">
+        <span class="pill muted" data-qcount="112">112 questions</span>
+        <span class="pill muted progress" data-progress-for="fuel-system" hidden></span>
+        
+      </div>
+      <span class="go" data-i18n="start">Start practicing →</span>
+    </a>
   </div>
-  <div class="desc" data-i18n="catalog_empty" data-testid="catalog-empty" style="padding:18px;text-align:center">No banks are published right now. You can still import your own JSON below.</div>
+  
 
   <div class="grid" id="local-grid" data-testid="local-grid" style="margin-top:14px"></div>
 
