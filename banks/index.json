@@ -1,12 +1,1 @@
-[
-  {
-    "id": "fuel-system",
-    "title": "Airframe Fuel System",
-    "mode": "public",
-    "description": "",
-    "tags": [],
-    "question_count": 112,
-    "has_images": false,
-    "json": "banks/fuel-system.json"
-  }
-]
+[]
