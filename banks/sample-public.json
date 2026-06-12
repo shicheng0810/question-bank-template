@@ -1,0 +1,49 @@
+[
+  {
+    "id": "sample-1",
+    "question": "During a routine inspection, what should be checked first?",
+    "choices": ["The aircraft logbook.", "The coffee supply.", "The paint color."],
+    "answer": 0,
+    "source": "Sample – Q1",
+    "tags": ["inspection"],
+    "section": "General"
+  },
+  {
+    "id": "sample-2",
+    "question": "Which action comes after the first routine inspection step?",
+    "choices": ["Record findings.", "Ignore defects.", "Remove all placards."],
+    "answer": 0,
+    "source": "Sample – Q2",
+    "tags": ["inspection"],
+    "section": "General"
+  },
+  {
+    "id": "sample-3",
+    "question": "Complete the maintenance phrase.",
+    "question_html": "Complete the maintenance phrase: use a <input data-blank=\"1\"> before closing the panel.",
+    "type": "fill",
+    "blanks": [["checklist", "check list"]],
+    "source": "Sample – Q3",
+    "tags": ["fill"],
+    "section": "General"
+  },
+  {
+    "id": "sample-4",
+    "question": "This diagram highlights the inspection access panel location.",
+    "choices": ["Access panel.", "Fuel grade.", "Serial plate."],
+    "answer": 0,
+    "source": "Sample – Q4",
+    "image": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='80'%3E%3Crect width='160' height='80' fill='%23eef2ff'/%3E%3Ccircle cx='80' cy='40' r='24' fill='%232563eb'/%3E%3C/svg%3E",
+    "tags": ["diagram"],
+    "section": "Images"
+  },
+  {
+    "id": "sample-5",
+    "question": "Select all acceptable inspection records.",
+    "choices": ["Signed log entry.", "Unsigned sticky note.", "Approved digital record."],
+    "answers": [0, 2],
+    "source": "Sample – Q5",
+    "tags": ["records"],
+    "section": "General"
+  }
+]

@@ -1,39 +1,15 @@
 [
   {
-    "id": "amt205",
-    "title": "AMT205 – Aircraft Coverings",
+    "id": "sample-public",
+    "title": "Sample Public Bank",
     "mode": "public",
-    "description": "Aviation Maintenance Technician 205 — fabric covering quizzes, homework, and assignments (deduplicated & merged).",
+    "description": "Fixture bank for local development and E2E tests.",
     "tags": [
-      "AMT205",
-      "coverings",
-      "fabric"
+      "sample",
+      "public"
     ],
-    "question_count": 133,
-    "has_images": false,
-    "json": "banks/amt205.json"
-  },
-  {
-    "id": "wood-structures",
-    "title": "Wood Structures",
-    "mode": "public",
-    "description": "Aircraft wood structures practice questions.",
-    "tags": [
-      "wood",
-      "structures"
-    ],
-    "question_count": 42,
-    "has_images": false,
-    "json": "banks/wood-structures.json"
-  },
-  {
-    "id": "all-banks",
-    "title": "All Banks · Merged Practice",
-    "mode": "public",
-    "description": "Every public bank merged into one page (duplicates removed).",
-    "tags": [],
-    "question_count": 175,
-    "has_images": false,
-    "json": "banks/all-banks.json"
+    "question_count": 5,
+    "has_images": true,
+    "json": "banks/sample-public.json"
   }
 ]
