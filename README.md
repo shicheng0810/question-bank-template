@@ -1,9 +1,4 @@
-# AMT Question Bank — Practice Site
+# Moved / 已迁移
 
-**👉 Practice here / 在这里做题: https://shicheng0810.github.io/question-bank-template/**
-
-This repo holds only the static build artifacts of the practice site (auto-published; the source/extractor lives in a private workspace).
-
-- `index.html` — catalog (EN / 中文 / Español)
-- `all.html` — all public banks merged into one page
-- `format.html` — JSON format guide for writing your own bank (import it on the catalog page; it stays in your browser)
+The AMT practice site now lives at **https://shicheng0810.github.io/question-bank/**
+（练习站已迁移到上面的新地址；本仓库仅保留自动跳转。Old deep links redirect automatically.）
