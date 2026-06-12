@@ -27,16 +27,6 @@
     "json": "banks/wood-structures.json"
   },
   {
-    "id": "205-helicopter",
-    "title": "205-helicopter",
-    "mode": "protected",
-    "description": "",
-    "tags": [],
-    "question_count": 29,
-    "has_images": false,
-    "payload": "banks/205-helicopter.qbpack"
-  },
-  {
     "id": "all-banks",
     "title": "All Banks · Merged Practice",
     "mode": "public",
