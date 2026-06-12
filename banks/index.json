@@ -8,5 +8,25 @@
     "question_count": 112,
     "has_images": false,
     "json": "banks/205-finishes.json"
+  },
+  {
+    "id": "general",
+    "title": "General Question Banks",
+    "mode": "public",
+    "description": "",
+    "tags": [],
+    "question_count": 1139,
+    "has_images": true,
+    "json": "banks/general.json"
+  },
+  {
+    "id": "all-banks",
+    "title": "All Banks · Merged Practice",
+    "mode": "public",
+    "description": "Every public bank merged into one page (duplicates removed).",
+    "tags": [],
+    "question_count": 1251,
+    "has_images": true,
+    "json": "banks/all-banks.json"
   }
 ]
