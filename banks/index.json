@@ -1,15 +1,1 @@
-[
-  {
-    "id": "sample-public",
-    "title": "Sample Public Bank",
-    "mode": "public",
-    "description": "Fixture bank for local development and E2E tests.",
-    "tags": [
-      "sample",
-      "public"
-    ],
-    "question_count": 5,
-    "has_images": true,
-    "json": "banks/sample-public.json"
-  }
-]
+[]
