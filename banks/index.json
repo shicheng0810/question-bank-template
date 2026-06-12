@@ -23,10 +23,10 @@
     "id": "all-banks",
     "title": "All Banks · Merged Practice",
     "mode": "public",
-    "description": "Every public bank merged into one page (duplicates removed).",
+    "virtual": true,
+    "description": "Pick any combination of banks and practice them together.",
     "tags": [],
     "question_count": 1251,
-    "has_images": true,
-    "json": "banks/all-banks.json"
+    "has_images": false
   }
 ]
