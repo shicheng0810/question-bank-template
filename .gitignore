@@ -39,3 +39,5 @@ dist-site/
 .gh-mirror/
 .bank-trash/
 .e2e-pages/
+.particle-demos/
+.fx-preview/
