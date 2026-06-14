@@ -30,6 +30,11 @@ if (!template.includes(MARKER)) {
   throw new Error('题库模板缺少 __QUESTION_BANK_JSON__ marker');
 }
 
+// 从模板里抽出星座粒子 IIFE，复用到目录页 —— 单一来源，两处永不漂移
+const CONSTELLATION_MATCH = template.match(/<script>\s*\/\* ===== 星座[\s\S]*?function constellation\(\)[\s\S]*?<\/script>/);
+const CONSTELLATION_SCRIPT = CONSTELLATION_MATCH ? CONSTELLATION_MATCH[0] : '';
+if (!CONSTELLATION_SCRIPT) console.warn('! 未能从模板抽取星座粒子脚本，目录页将无粒子背景');
+
 function escapeHTML(value) {
   return String(value ?? '')
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -300,7 +305,7 @@ function catalogHtml(banks) {
       --bg:#eef1f6; --card:#ffffff; --card-2:#f6f8fc;
       --ink:#1e293b; --ink-soft:#3b4860; --muted:#64748b;
       --border:#e4e8f0; --border-strong:#d3d9e4;
-      --brand:#2563eb; --brand-strong:#1d4ed8; --glow:rgba(37,99,235,.06);
+      --brand:#2563eb; --brand-strong:#1d4ed8; --glow:rgba(37,99,235,.06); --particle-rgb:37,99,235;
       --badge-bg:#eef2ff; --badge-ink:#3730a3; --badge-border:#e0e7ff;
       --muted-bg:#eef1f6;
       --locked-bg:#fef3c7; --locked-ink:#92400e; --locked-border:#fde68a;
@@ -314,7 +319,7 @@ function catalogHtml(banks) {
       --bg:#0b1020; --card:#141b2d; --card-2:#0f1626;
       --ink:#e8edf6; --ink-soft:#c4cee0; --muted:#93a0b8;
       --border:#26304a; --border-strong:#33415f;
-      --brand:#6f9bff; --brand-strong:#5b8cff; --glow:rgba(111,155,255,.12);
+      --brand:#6f9bff; --brand-strong:#5b8cff; --glow:rgba(111,155,255,.12); --particle-rgb:111,155,255;
       --badge-bg:rgba(99,102,241,.20); --badge-ink:#c7d2fe; --badge-border:rgba(129,140,248,.32);
       --muted-bg:rgba(148,163,184,.12);
       --locked-bg:rgba(245,158,11,.16); --locked-ink:#fcd34d; --locked-border:rgba(245,158,11,.35);
@@ -323,6 +328,8 @@ function catalogHtml(banks) {
       --shadow-sm:0 1px 2px rgba(0,0,0,.4); --shadow-md:0 16px 38px rgba(0,0,0,.5);
     }
     *{box-sizing:border-box}
+    /* 星座粒子背景层：固定全屏、置底(-1)、不挡点击；正文是 body 在流内容、自然在其上 */
+    #constellation{position:fixed; inset:0; width:100%; height:100%; pointer-events:none; z-index:-1; display:block}
     body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif; color:var(--ink); background:radial-gradient(1100px 560px at 100% -12%, var(--glow), transparent 60%), var(--bg); background-attachment:fixed; min-height:100vh; max-width:940px; margin:0 auto; line-height:1.6; padding:22px 16px 64px; -webkit-font-smoothing:antialiased}
     h1{font-size:1.7rem; font-weight:780; letter-spacing:-.02em; margin:0 0 4px}
     .topbar{display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:6px}
@@ -350,6 +357,7 @@ function catalogHtml(banks) {
   </style>
 </head>
 <body>
+  <canvas id="constellation" aria-hidden="true"></canvas>
   <div class="topbar">
     <h1 data-i18n="title">AMT Question Bank Practice</h1>
     <div class="topbar-controls">
@@ -551,12 +559,14 @@ ${cards}
       document.documentElement.setAttribute("data-theme", t);
       try{ localStorage.setItem(THEME_KEY, t); }catch(e){}
       applyThemeIcon();
+      if(window.__constellationThemeUpdate) window.__constellationThemeUpdate(); // 粒子背景跟随主题变色
     }
     function toggleTheme(){ setTheme(currentTheme() === "dark" ? "light" : "dark"); }
     applyLang();
     applyThemeIcon();
     scanProgress();
   </script>
+  ${CONSTELLATION_SCRIPT}
 </body>
 </html>
 `;
