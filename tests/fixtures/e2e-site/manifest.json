@@ -1,0 +1,36 @@
+[
+  {
+    "id": "amt205",
+    "title": "AMT205 – Aircraft Coverings",
+    "mode": "public",
+    "description": "E2E fixture (frozen snapshot).",
+    "tags": [
+      "AMT205"
+    ],
+    "question_count": 133,
+    "has_images": false,
+    "json": "banks/amt205.json"
+  },
+  {
+    "id": "wood-structures",
+    "title": "Wood Structures",
+    "mode": "public",
+    "description": "E2E fixture (frozen snapshot).",
+    "tags": [
+      "wood"
+    ],
+    "question_count": 42,
+    "has_images": false,
+    "json": "banks/wood-structures.json"
+  },
+  {
+    "id": "205-helicopter",
+    "title": "205-helicopter",
+    "mode": "protected",
+    "description": "E2E fixture (listed only).",
+    "tags": [],
+    "question_count": 5,
+    "has_images": false,
+    "payload": "banks/205-helicopter.qbpack"
+  }
+]

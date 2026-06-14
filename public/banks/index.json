@@ -1,45 +1,61 @@
 [
   {
-    "id": "amt205",
-    "title": "AMT205 – Aircraft Coverings",
-    "mode": "public",
-    "description": "Aviation Maintenance Technician 205 — fabric covering quizzes, homework, and assignments (deduplicated & merged).",
-    "tags": ["AMT205", "coverings", "fabric"],
-    "question_count": 133,
-    "has_images": false,
-    "json": "banks/amt205.json"
-  },
-  {
     "id": "sample-public",
     "title": "Sample Public Bank",
     "mode": "public",
-    "deploy": false,
     "description": "Fixture bank for local development and E2E tests.",
-    "tags": ["sample", "public"],
+    "tags": [
+      "sample",
+      "public"
+    ],
     "question_count": 5,
     "has_images": true,
-    "json": "banks/sample-public.json"
-  },
-  {
-    "id": "wood-structures",
-    "title": "Wood Structures",
-    "mode": "public",
-    "description": "Aircraft wood structures practice questions.",
-    "tags": ["wood", "structures"],
-    "question_count": 0,
-    "has_images": false,
-    "json": "banks/wood-structures.json"
+    "json": "banks/sample-public.json",
+    "deploy": false
   },
   {
     "id": "demo-protected",
     "title": "Demo Protected Bank",
     "mode": "protected",
-    "deploy": false,
     "description": "Password-protected fixture bank for E2E tests.",
-    "tags": ["sample", "protected"],
+    "tags": [
+      "sample",
+      "protected"
+    ],
     "question_count": 5,
     "has_images": true,
     "payload": "banks/demo-protected.qbpack",
-    "password_hint": "sample-pass"
+    "password_hint": "sample-pass",
+    "deploy": false
+  },
+  {
+    "id": "205-finishes",
+    "title": "Finishes",
+    "mode": "public",
+    "description": "",
+    "tags": [],
+    "question_count": 112,
+    "has_images": false,
+    "json": "banks/205-finishes.json"
+  },
+  {
+    "id": "215-helicopter",
+    "title": "Helicopter",
+    "mode": "public",
+    "description": "",
+    "tags": [],
+    "question_count": 29,
+    "has_images": false,
+    "json": "banks/215-helicopter.json"
+  },
+  {
+    "id": "general",
+    "title": "General Question Banks",
+    "mode": "public",
+    "description": "",
+    "tags": [],
+    "question_count": 1139,
+    "has_images": true,
+    "json": "banks/general.json"
   }
 ]

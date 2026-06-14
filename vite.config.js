@@ -2,15 +2,13 @@ import { defineConfig, loadEnv } from 'vite';
 
 import { createRapidOcrVitePlugin } from './src/server/local-rapidocr-proxy.js';
 import { createOpenAiVisionOcrVitePlugin } from './src/server/openai-vision-ocr-proxy.js';
+import { createLocalPublishVitePlugin } from './src/server/local-publish-proxy.js';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
 
-  // SITE_ONLY=1 builds just the student-facing answering site (no Extractor).
-  // GitHub Pages uses this so the author tool stays local-only; a plain `npm run build`
-  // still builds both apps for local use.
-  const siteOnly = process.env.SITE_ONLY === '1' || process.env.SITE_ONLY === 'true';
-
+  // 方案乙后 vite 只负责提取器（本地作者工具）。做题站点 = scripts/build-pages.mjs
+  // 生成的纯静态目录页 + 单文件播放器（docs/），与 vite 构建无关。
   return {
     // Relative asset paths so the built site works unchanged on GitHub Pages (both
     // user pages `user.github.io` and project pages `user.github.io/<repo>/`),
@@ -24,12 +22,13 @@ export default defineConfig(({ mode }) => {
       createOpenAiVisionOcrVitePlugin({
         getApiKey: () => process.env.OPENAI_API_KEY || env.OPENAI_API_KEY || '',
       }),
+      createLocalPublishVitePlugin({
+        getRoot: () => process.cwd(),
+      }),
     ],
     build: {
       rollupOptions: {
-        input: siteOnly
-          ? { site: 'index.html' }
-          : { site: 'index.html', extractor: 'extractor/index.html' },
+        input: { root: 'index.html', extractor: 'extractor/index.html' },
       },
     },
     test: {

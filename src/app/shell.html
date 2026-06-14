@@ -64,7 +64,7 @@
       </div>
       <div class="dropzone" id="imgDropZone" data-testid="img-dropzone">
         <div class="title">拖拽截图到这里，或直接粘贴截图（Ctrl / Cmd + V）</div>
-        <div class="meta">支持 PNG / JPG / WebP，多次追加不会覆盖已有文件。截图会进入左侧文件列表，并复用现有预览、修正、导出 JSON、导出站点发布包流程。</div>
+        <div class="meta">支持 PNG / JPG / WebP，多次追加不会覆盖已有文件。截图会进入左侧文件列表，并复用现有预览、修正、导出 JSON、导出做题单 HTML 流程。</div>
       </div>
       <details class="panel nested-panel" id="ocrSettings">
         <summary class="meta"><strong>截图识别设置（默认本地 OCR，可选 AI 修复）</strong></summary>
@@ -223,18 +223,36 @@
               <label class="meta inline-check">
                 <input id="rememberPublishPassword" type="checkbox" data-testid="remember-publish-password"> 记住发布密码到 localStorage
               </label>
-              <label class="meta inline-check">
-                <input id="includeLegacyHtml" type="checkbox" data-testid="include-legacy-html"> 同时附带兼容单 HTML
-              </label>
-            </div>
-            <div class="row row--compact">
-              <input id="manifestFile" type="file" accept=".json,application/json" data-testid="manifest-file">
-              <span class="meta">可选：导入现有 <code>banks/index.json</code>，导出时会按 <code>bankId</code> 更新或追加该条目。</span>
             </div>
             <div class="row row--toolbar row--publish-actions">
-              <button class="btn primary" id="genQBankBtn" disabled data-testid="generate-site-package-btn">导出站点发布包（.zip）</button>
-              <button class="btn" id="genLegacyQBankBtn" disabled data-testid="generate-legacy-html-btn">导出兼容单 HTML</button>
+              <button class="btn" id="genLegacyQBankBtn" disabled data-testid="generate-legacy-html-btn">导出做题单 HTML（全平铺）</button>
+              <select id="publishTargetSel" data-testid="publish-target-select" title="发布后部署到哪里">
+                <option value="all">部署：Cloudflare + GitHub</option>
+                <option value="cf">仅 Cloudflare</option>
+                <option value="gh">仅 GitHub</option>
+                <option value="none">只写入仓库，不部署</option>
+              </select>
+              <button class="btn primary" id="publishSiteBtn" disabled data-testid="publish-site-btn" title="用右侧输出框的合并 JSON 直接发布到练习站">🚀 发布到站点</button>
             </div>
+            <div class="meta" id="publishSiteStatus" data-testid="publish-site-status"></div>
+          </details>
+
+          <details class="panel nested-panel" id="siteBanksPanel" data-testid="site-banks-panel">
+            <summary class="meta"><strong>站点题库管理（在线列表 · 下架/恢复 · 删除 · 公开⇄加密 · 部署）</strong></summary>
+            <div class="meta" id="siteBanksHint" style="margin:6px 0 2px"></div>
+            <div id="siteBanksList" data-testid="site-banks-list"></div>
+            <div class="row row--toolbar" style="margin-top:10px">
+              <button class="btn" id="siteBanksRefreshBtn" data-testid="site-banks-refresh-btn">刷新列表</button>
+              <button class="btn" id="siteUnlistAllBtn" data-testid="site-unlist-all-btn">全部下架</button>
+              <select id="siteDeployTargetSel" data-testid="site-deploy-target">
+                <option value="all">部署：Cloudflare + GitHub</option>
+                <option value="cf">仅 Cloudflare</option>
+                <option value="gh">仅 GitHub</option>
+              </select>
+              <button class="btn primary" id="siteDeployBtn" data-testid="site-deploy-btn">🚀 部署当前清单</button>
+              <span class="meta">改动（下架/删除/转换）要点这里部署后才会反映到线上。</span>
+            </div>
+            <div class="meta" id="siteBanksOpStatus" data-testid="site-banks-op-status"></div>
           </details>
 
           <details class="panel nested-panel" id="aiSettings" data-testid="ai-settings">
@@ -275,7 +293,7 @@
               <span class="meta" id="aiStatus" data-testid="ai-status"></span>
             </div>
             <div class="meta">
-              输出：会把转换后的 JSON 写回右侧输出框（out），然后你可以继续点“导出站点发布包”或“导出兼容单 HTML”。
+              输出：会把转换后的 JSON 写回右侧输出框（out），然后你可以继续点“导出做题单 HTML”。
             </div>
           </details>
         </div>

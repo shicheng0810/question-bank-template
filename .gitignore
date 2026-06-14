@@ -35,3 +35,7 @@ Thumbs.db
 .idea
 .vscode
 *.swp
+dist-site/
+.gh-mirror/
+.bank-trash/
+.e2e-pages/

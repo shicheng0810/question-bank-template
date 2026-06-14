@@ -150,21 +150,6 @@ export function normalizeChoiceQuestionShape(q){
   return q;
 }
 
-export function canGenerateQBank(){
-  const hasParsed = datasets.filter(x=>x.parsedReady).length > 0;
-  if (hasParsed) return true;
-
-  const t = (out && out.value ? out.value.trim() : '');
-  if (!t) return false;
-  try{
-    const obj = JSON.parse(t);
-    if (Array.isArray(obj) && obj.length) return true;
-    if (obj && typeof obj === 'object') return true;
-  }catch{}
-  return false;
-}
-
-
 export function uniqueNonEmptyStrings(arr){
   return Array.from(new Set((arr || []).map(v => String(v || '').trim()).filter(Boolean)));
 }
@@ -222,9 +207,18 @@ export function buildQuestionBank(data, prefix, sourcePrefix){
 
     const kind = q.kind || 'choice';
 
+    // 透传字段（tags/section/explanation/缺图标记）：所有题型统一带上
+    const extraFields = {
+      ...(Array.isArray(q.tags) && q.tags.length ? { tags: q.tags } : {}),
+      ...(q.section ? { section: q.section } : {}),
+      ...(q.explanation ? { explanation: q.explanation } : {}),
+      ...(Number(q.missingImageCount) > 0 ? { missing_images: Number(q.missingImageCount) } : {}),
+    };
+
     if (kind === 'fill'){
       const blanks = (q.blanks && q.blanks.length) ? q.blanks : [[]];
-      const obj = { id, question:q.qtext, blanks, source:src, type:'fill', ...imgField };
+      const obj = { id, question:q.qtext, blanks, source:src, type:'fill', ...imgField, ...extraFields };
+      if (Array.isArray(q.answer_sets) && q.answer_sets.length) obj.answer_sets = q.answer_sets;
       if (q.qhtml) obj.question_html = q.qhtml; // 题干里带输入框的位置（后续 question_bank 用）
       arr.push(obj);
       return;
@@ -251,27 +245,79 @@ export function buildQuestionBank(data, prefix, sourcePrefix){
           answer,
           source: subSrc,
           ...imgField,
+          ...extraFields,
         });
       });
       return;
     }
 
-    // 默认：选择题
+    // 默认：选择题。未识别题型（multiple_dropdowns/calculated 等落进 kind:'unknown' 的）
+    // 或解析不出任何选项的记录，不再导出 {choices:[],answer:-1} 这类坏数据——
+    // 它们在提取器预览里以“未知题型/待人工确认”可见，导出端由 validateQuestionBankRecords 兜底。
+    if (kind !== 'choice' || !(q.choices || []).length) return;
+
     const choices = (q.choices || []).map(c=>c.text);
+    // 答案信号溯源：非 explicit（score 推断 / Canvas correct 块回退 / 满分冲突）写入
+    // answer_source，发布后可追溯哪些题的答案不是页面明确标注的。
+    const answerSource = String(q.answerSource || '').trim();
+    const sourceField = answerSource && answerSource !== 'explicit' ? { answer_source: answerSource } : {};
 
     if (q.isMulti){
       const answers = (q.choices || []).reduce((acc,c,i)=> c.isCorrect ? acc.concat(i) : acc, []);
       if (answers.length === 1){
-        arr.push({ id, question:q.qtext, choices, answer:answers[0], source:src, ...imgField });
+        arr.push({ id, question:q.qtext, choices, answer:answers[0], source:src, ...imgField, ...sourceField, ...extraFields });
       }else{
-        arr.push({ id, question:q.qtext, choices, answers, source:src, ...imgField });
+        arr.push({ id, question:q.qtext, choices, answers, source:src, ...imgField, ...sourceField, ...extraFields });
       }
     }else{
       const answer = (q.choices || []).findIndex(c=>c.isCorrect);
-      arr.push({ id, question:q.qtext, choices, answer, source:src, ...imgField });
+      arr.push({ id, question:q.qtext, choices, answer, source:src, ...imgField, ...sourceField, ...extraFields });
     }
   });
   return arr;
+}
+
+// 导出前的 schema 校验闸：把不完整/不可作答的记录从发布物里剔出来并说明原因，
+// 替代以前“静默导出坏记录”的行为。valid 原样保序返回；rejected 带 reasons 供 UI 汇报。
+export function validateQuestionBankRecords(records){
+  const valid = [];
+  const rejected = [];
+  (Array.isArray(records) ? records : []).forEach(rec => {
+    const reasons = [];
+    if (!rec || typeof rec !== 'object' || Array.isArray(rec)){
+      rejected.push({ record: rec, reasons: ['不是合法的题目对象'] });
+      return;
+    }
+    const id = String(rec.id == null ? '' : rec.id).trim();
+    if (!id) reasons.push('缺少 id');
+
+    const hasImage = !!(rec.image && (typeof rec.image === 'string' ? rec.image : (Array.isArray(rec.image) && rec.image.length)));
+    const questionText = String(rec.question == null ? '' : rec.question).trim();
+    if (!questionText && !hasImage) reasons.push('题干为空且无图片');
+
+    const isFill = rec.type === 'fill' || Array.isArray(rec.blanks);
+    if (isFill){
+      const blanks = Array.isArray(rec.blanks) ? rec.blanks : [];
+      const hasAnswer = blanks.some(arr => Array.isArray(arr) && arr.some(v => String(v == null ? '' : v).trim()));
+      if (!hasAnswer) reasons.push('填空题没有任何可接受答案');
+    } else if (Array.isArray(rec.choices)){
+      const n = rec.choices.length;
+      if (n < 2) reasons.push(`选项不足（${n} 个）`);
+      if (Array.isArray(rec.answers)){
+        const ok = rec.answers.length >= 1 && rec.answers.every(a => Number.isInteger(a) && a >= 0 && a < n);
+        if (!ok) reasons.push('多选答案索引非法或为空');
+      } else {
+        const a = rec.answer;
+        if (!(Number.isInteger(a) && a >= 0 && a < n)) reasons.push('缺少正确答案（answer 越界或为 -1）');
+      }
+    } else {
+      reasons.push('未知题型结构（既无 choices 也无 blanks）');
+    }
+
+    if (reasons.length) rejected.push({ record: rec, reasons });
+    else valid.push(rec);
+  });
+  return { valid, rejected };
 }
 
 export function flattenSourceList(src){
@@ -362,13 +408,14 @@ export function makeUniqueQuestionKey(item){
   // fall back to the full choice set when the correct answer is unknown, so that distinct
   // unanswered questions sharing a stem are not over-merged.
   const hasAnswer = isChoice && answerTexts.length > 0;
+  // 注意：key 不含图片指纹——同一道题一边补到了图、一边没补（或压缩参数不同）也应合并；
+  // 图片在 mergeUniqueQuestionRecord 里按“先到优先”补齐。
   return JSON.stringify({
     q: normalizeTextForMerge(item && item.question),
     type,
     choices: isChoice && !hasAnswer ? choices.slice().sort() : [],
     answers: isChoice ? answerTexts : [],
     blanks,
-    images: normalizeImageFingerprints(item && item.image),
   });
 }
 
@@ -388,6 +435,102 @@ export function mergeUniqueQuestionRecord(base, incoming){
   return base;
 }
 
+
+/* -------------------- 题库 JSON ⇄ 提取器内部形态（round-trip 配对） --------------------
+   buildQuestionBank 是正向投影（parsed → 题库 JSON），下面这组是反向投影
+   （题库 JSON → parsed，供「导入已生成题库」再编辑）。放在一起共测，保证
+   导出→导入→导出 不丢字段。 */
+export function extractIdPrefix(id){
+  const s = String(id || '').trim();
+  const m = s.match(/^(.+?)-(.+)$/);
+  return m ? m[1].trim() : '';
+}
+
+export function extractIdSuffix(id, prefix){
+  const s = String(id || '').trim();
+  if (!s) return '';
+  if (prefix && s.startsWith(prefix + '-')) return s.slice(prefix.length + 1).trim();
+  const m = s.match(/^.+?-(.+)$/);
+  return m ? m[1].trim() : s;
+}
+
+export function extractSourcePrefix(src){
+  const s = String(src || '').trim();
+  const m = s.match(/^(.*?)\s*[–-]\s*Q\s*.+$/i);
+  return m ? m[1].trim() : '';
+}
+
+export function extractSourceNum(src){
+  const s = String(src || '').trim();
+  const m = s.match(/[–-]\s*Q\s*(.+)$/i);
+  return m ? m[1].trim() : '';
+}
+
+export function normalizeImportedImageList(item){
+  const raw = item && item.image;
+  if (Array.isArray(raw)) return raw.map(v => String(v || '').trim()).filter(Boolean);
+  if (raw) return [String(raw).trim()].filter(Boolean);
+  return [];
+}
+
+export function convertQuestionBankItemToParsed(item, idx, meta){
+  const images = normalizeImportedImageList(item);
+  const prefix = meta && meta.prefix ? meta.prefix : '';
+  const idSuffix = extractIdSuffix(item && item.id, prefix) || String(idx + 1);
+  const sourceNum = extractSourceNum(item && item.source) || idSuffix;
+  const displayNum = sourceNum || idSuffix || String(idx + 1);
+  const base = {
+    num: displayNum,
+    idSuffix,
+    sourceNum,
+    qtext: String((item && (item.question || item.qtext)) || '').trim(),
+    qhtml: String((item && item.question_html) || '').trim(),
+    images,
+    uploadedImages: [],
+    expectedImageCount: images.length,
+    missingImageSources: [],
+    importedId: String((item && item.id) || '').trim(),
+    importedSource: String((item && item.source) || '').trim(),
+    preserveOriginalMeta: true,
+    // 透传字段：以前 re-import 会静默丢掉这些，导出→导入→导出 不再有损
+    ...(Array.isArray(item && item.tags) && item.tags.length ? { tags: item.tags.slice() } : {}),
+    ...(item && item.section ? { section: String(item.section) } : {}),
+    ...(item && item.explanation ? { explanation: String(item.explanation) } : {}),
+    ...(item && item.answer_source ? { answerSource: String(item.answer_source) } : {}),
+  };
+
+  if ((item && item.type === 'fill') || Array.isArray(item && item.blanks)){
+    const blanks = Array.isArray(item && item.blanks) && item.blanks.length
+      ? item.blanks.map(ans => Array.isArray(ans)
+          ? ans.map(v => String(v || '').trim()).filter(Boolean)
+          : [String(ans || '').trim()].filter(Boolean))
+      : [[]];
+    const answerSets = Array.isArray(item && item.answer_sets) && item.answer_sets.length
+      ? JSON.parse(JSON.stringify(item.answer_sets))
+      : null;
+    return { kind: 'fill', blanks, ...(answerSets ? { answer_sets: answerSets } : {}), ...base };
+  }
+
+  const answers = Array.isArray(item && item.answers)
+    ? item.answers.map(v => Number(v)).filter(v => Number.isInteger(v))
+    : [];
+  const singleAnswer = Number.isInteger(item && item.answer) ? Number(item.answer) : -1;
+  const correctSet = new Set(answers.length ? answers : (singleAnswer >= 0 ? [singleAnswer] : []));
+  const choiceTexts = Array.isArray(item && item.choices)
+    ? item.choices
+    : (Array.isArray(item && item.options) ? item.options : []);
+  const choices = choiceTexts.map((text, i) => ({
+    text: String(text || ''),
+    isCorrect: correctSet.has(i)
+  }));
+
+  return {
+    kind: 'choice',
+    isMulti: correctSet.size > 1,
+    choices,
+    ...base
+  };
+}
 
 /* -------------------- 自动从文件名抽取前缀 -------------------- */
 export function guessMetaFromFilename(name){
@@ -576,5 +719,32 @@ export function buildUniqueMergedQuestionBankFromCollections(collections) {
     mergeUniqueQuestionRecord(seen.get(key), item);
   });
 
-  return merged;
+  // 二段合并：主 key 对「有答案/无答案」不对称（无答案才带选项集合），导致同一道题
+  // 一份来源显示了正确答案、另一份没显示时会双份并存。这里把「无答案」的选择题按
+  // 题干+完整选项集合 去匹配「有答案」的同题：恰好命中一条就吸收进去；命中多条
+  // （同干同选项但答案不同——本就该分开）则保持独立，不做猜测。
+  const choiceShapeKey = (item) => JSON.stringify({
+    q: normalizeTextForMerge(item && item.question),
+    c: (Array.isArray(item && item.choices) ? item.choices.map(normalizeTextForMerge) : []).slice().sort(),
+  });
+  const isChoiceRecord = (r) => Array.isArray(r && r.choices) && r.choices.length > 0 && !(r.type === 'fill' || Array.isArray(r.blanks));
+  const answeredByShape = new Map();
+  for (const r of merged) {
+    if (!isChoiceRecord(r) || !getAnswerSignature(r).length) continue;
+    const k = choiceShapeKey(r);
+    if (!answeredByShape.has(k)) answeredByShape.set(k, []);
+    answeredByShape.get(k).push(r);
+  }
+  const out = [];
+  for (const r of merged) {
+    if (isChoiceRecord(r) && !getAnswerSignature(r).length) {
+      const targets = answeredByShape.get(choiceShapeKey(r)) || [];
+      if (targets.length === 1) {
+        mergeUniqueQuestionRecord(targets[0], r);
+        continue;
+      }
+    }
+    out.push(r);
+  }
+  return out;
 }

@@ -3,8 +3,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import JSZip from 'jszip';
-import { buildLegacyQuestionBankHtml, buildSitePublishZip } from '../src/services/site-package-export.js';
+import { buildLegacyQuestionBankHtml } from '../src/services/site-package-export.js';
 
 const questions = [
   {
@@ -15,27 +14,7 @@ const questions = [
   },
 ];
 
-describe('site package export', () => {
-  it('includes every resource referenced by the exported site index', async () => {
-    const result = await buildSitePublishZip({
-      questions,
-      publishMeta: { id: 'sample', title: 'Sample', mode: 'public' },
-      existingManifest: [],
-    });
-    const zip = await JSZip.loadAsync(result.blob);
-    const indexHtml = await zip.file('index.html').async('string');
-
-    expect(indexHtml).toContain('assets/site.css');
-    expect(indexHtml).toContain('assets/main.js');
-    expect(zip.file('assets/site.css')).toBeTruthy();
-    expect(zip.file('assets/main.js')).toBeTruthy();
-    expect(zip.file('assets/site-app.js')).toBeTruthy();
-    expect(zip.file('assets/site-logic.js')).toBeTruthy();
-    expect(zip.file('assets/qbpack.js')).toBeTruthy();
-    expect(zip.file('banks/index.json')).toBeTruthy();
-    expect(zip.file('banks/sample.json')).toBeTruthy();
-  });
-
+describe('single-file bank export', () => {
   it('injects public and protected legacy payloads into the template marker', async () => {
     const publicHtml = await buildLegacyQuestionBankHtml(questions, { mode: 'public' });
     expect(publicHtml).not.toContain('__QUESTION_BANK_JSON__');
@@ -46,5 +25,14 @@ describe('site package export', () => {
     expect(protectedHtml).toContain('"mode":"protected"');
     expect(protectedHtml).toContain('"envelope"');
     expect(protectedHtml).toContain('"format":"qbpack-v1"');
+  });
+
+  it('injects the per-bank localStorage namespace (falls back to "amt")', async () => {
+    const withId = await buildLegacyQuestionBankHtml(questions, { mode: 'public', bankId: 'AMT205 Coverings' });
+    expect(withId).not.toContain('__BANK_STORAGE_NS__');
+    expect(withId).toContain('const RAW_STORAGE_NS = "amt205-coverings"');
+
+    const withoutId = await buildLegacyQuestionBankHtml(questions, { mode: 'public' });
+    expect(withoutId).toContain('const RAW_STORAGE_NS = "amt"');
   });
 });

@@ -1,0 +1,21 @@
+[
+  {
+    "id": "hand-1",
+    "question": "Which fabric is approved for aircraft covering?",
+    "choices": ["Polyester", "Cotton bedsheet", "Nylon tarp"],
+    "answer": 0,
+    "source": "Hand-written demo"
+  },
+  {
+    "id": "hand-2",
+    "question": "Select ALL tools required for fabric testing.",
+    "choices": ["Punch tester", "Hammer", "Maule tester", "Torque wrench"],
+    "answers": [0, 2]
+  },
+  {
+    "id": "hand-3",
+    "type": "fill",
+    "question": "A hole smaller than ____ inches may be repaired with a doped-on patch.",
+    "blanks": [["8", "eight"]]
+  }
+]

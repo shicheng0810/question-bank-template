@@ -5,10 +5,10 @@ import {
   canGenerateQuestionBank as canGenerateQuestionBankHelper,
   getPublishButtonState as getPublishButtonStateHelper,
   guessPublishDefaults as guessPublishDefaultsHelper,
-  parseManifestText as parseManifestTextHelper,
 } from '../lib/publish-settings.js';
-import { buildLegacyQuestionBankHtml, buildSitePublishZip } from '../services/site-package-export.js';
+import { buildLegacyQuestionBankHtml } from '../services/site-package-export.js';
 import { shouldUseSelectedAnswersAsCorrectFallback } from '../lib/canvas-answer-fallback.js';
+import { parseMHTML, rewriteSources, parseCanvasHTML } from '../lib/canvas-extract.js';
 import {
   applyAiAnswerSuggestion,
   buildDeepSeekAnswerFillPayload,
@@ -27,6 +27,9 @@ import {
   buildQuestionBank, flattenSourceList, normalizeTextForMerge, hashStringForMerge,
   normalizeImageFingerprints, getAnswerSignature, applyAnswerSignature, mergeAnswerSignature,
   makeUniqueQuestionKey, mergeUniqueQuestionRecord, guessMetaFromFilename,
+  validateQuestionBankRecords,
+  extractIdPrefix, extractIdSuffix, extractSourcePrefix, extractSourceNum,
+  normalizeImportedImageList, convertQuestionBankItemToParsed,
   parseHeaders, base64ToBytes, bytesToBase64, qpToBytes, strToBytes, bytesToUTF8,
   parseFillInputToAnswers, cleanHTML, cleanHTMLString,
   buildUniqueMergedQuestionBankFromCollections,
@@ -78,8 +81,19 @@ function downloadOutAsJSON(){
 const exportActiveBtn = $('#exportActiveBtn');
 const exportAllBtn = $('#exportAllBtn');
 const exportUniqueBtn = $('#exportUniqueBtn');
-const genQBankBtn = $('#genQBankBtn');
 const genLegacyQBankBtn = $('#genLegacyQBankBtn');
+const publishSiteBtn = $('#publishSiteBtn');
+const publishTargetSel = $('#publishTargetSel');
+const publishSiteStatusEl = $('#publishSiteStatus');
+let publishBridgeAvailable = false; // dev server 本地发布接口是否可用（build/preview 模式下没有）
+let publishInFlight = false;
+const siteBanksListEl = $('#siteBanksList');
+const siteBanksHintEl = $('#siteBanksHint');
+const siteBanksOpStatusEl = $('#siteBanksOpStatus');
+const siteBanksRefreshBtn = $('#siteBanksRefreshBtn');
+const siteDeployTargetSel = $('#siteDeployTargetSel');
+const siteDeployBtn = $('#siteDeployBtn');
+let lastSiteManifest = [];
 const downloadOutJsonBtn = $('#downloadOutJsonBtn');
 const publishBankIdEl = $('#publishBankId');
 const publishTitleEl = $('#publishTitle');
@@ -316,38 +330,10 @@ function mostCommonNonEmpty(arr){
   return best;
 }
 
-function extractIdPrefix(id){
-  const s = String(id || '').trim();
-  const m = s.match(/^(.+?)-(.+)$/);
-  return m ? m[1].trim() : '';
-}
 
-function extractIdSuffix(id, prefix){
-  const s = String(id || '').trim();
-  if (!s) return '';
-  if (prefix && s.startsWith(prefix + '-')) return s.slice(prefix.length + 1).trim();
-  const m = s.match(/^.+?-(.+)$/);
-  return m ? m[1].trim() : s;
-}
 
-function extractSourcePrefix(src){
-  const s = String(src || '').trim();
-  const m = s.match(/^(.*?)\s*[–-]\s*Q\s*.+$/i);
-  return m ? m[1].trim() : '';
-}
 
-function extractSourceNum(src){
-  const s = String(src || '').trim();
-  const m = s.match(/[–-]\s*Q\s*(.+)$/i);
-  return m ? m[1].trim() : '';
-}
 
-function normalizeImportedImageList(item){
-  const raw = item && item.image;
-  if (Array.isArray(raw)) return raw.map(v => String(v || '').trim()).filter(Boolean);
-  if (raw) return [String(raw).trim()].filter(Boolean);
-  return [];
-}
 
 function guessQBankMeta(arr, fallbackName){
   const guess = guessMetaFromFilename(fallbackName || '');
@@ -356,56 +342,6 @@ function guessQBankMeta(arr, fallbackName){
   return { prefix, sourcePrefix };
 }
 
-function convertQuestionBankItemToParsed(item, idx, meta){
-  const images = normalizeImportedImageList(item);
-  const prefix = meta && meta.prefix ? meta.prefix : '';
-  const idSuffix = extractIdSuffix(item && item.id, prefix) || String(idx + 1);
-  const sourceNum = extractSourceNum(item && item.source) || idSuffix;
-  const displayNum = sourceNum || idSuffix || String(idx + 1);
-  const base = {
-    num: displayNum,
-    idSuffix,
-    sourceNum,
-    qtext: String((item && (item.question || item.qtext)) || '').trim(),
-    qhtml: String((item && item.question_html) || '').trim(),
-    images,
-    uploadedImages: [],
-    expectedImageCount: images.length,
-    missingImageSources: [],
-    importedId: String((item && item.id) || '').trim(),
-    importedSource: String((item && item.source) || '').trim(),
-    preserveOriginalMeta: true
-  };
-
-  if ((item && item.type === 'fill') || Array.isArray(item && item.blanks)){
-    const blanks = Array.isArray(item && item.blanks) && item.blanks.length
-      ? item.blanks.map(ans => Array.isArray(ans)
-          ? ans.map(v => String(v || '').trim()).filter(Boolean)
-          : [String(ans || '').trim()].filter(Boolean))
-      : [[]];
-    return { kind: 'fill', blanks, ...base };
-  }
-
-  const answers = Array.isArray(item && item.answers)
-    ? item.answers.map(v => Number(v)).filter(v => Number.isInteger(v))
-    : [];
-  const singleAnswer = Number.isInteger(item && item.answer) ? Number(item.answer) : -1;
-  const correctSet = new Set(answers.length ? answers : (singleAnswer >= 0 ? [singleAnswer] : []));
-  const choiceTexts = Array.isArray(item && item.choices)
-    ? item.choices
-    : (Array.isArray(item && item.options) ? item.options : []);
-  const choices = choiceTexts.map((text, i) => ({
-    text: String(text || ''),
-    isCorrect: correctSet.has(i)
-  }));
-
-  return {
-    kind: 'choice',
-    isMulti: correctSet.size > 1,
-    choices,
-    ...base
-  };
-}
 
 function makeQBankDataset(file, arr){
   const meta = guessQBankMeta(arr, file && file.name);
@@ -559,30 +495,8 @@ exportUniqueBtn.addEventListener('click', () => {
 });
 
 downloadOutJsonBtn && downloadOutJsonBtn.addEventListener('click', downloadOutAsJSON);
-genQBankBtn && genQBankBtn.addEventListener('click', async () => {
-  try{
-    const arr = getExportArrayOrNull();
-    if (!arr || !arr.length){
-      alert('没有可发布的题库：请先解析并导出 JSON。');
-      return;
-    }
-    const publishMeta = collectPublishMeta(arr);
-    const existingManifest = await readImportedManifest();
-    const includeLegacyHtml = !!(includeLegacyHtmlEl && includeLegacyHtmlEl.checked);
-    const result = await buildSitePublishZip({
-      questions: arr,
-      publishMeta,
-      existingManifest,
-      includeLegacyHtml,
-    });
-    downloadBlobAsFile(result.blob, result.filename || 'site_publish.zip');
-    statusEl.textContent = `已导出站点发布包：${result.filename}（${result.entry.mode === 'protected' ? '密码保护' : '公开'}，${arr.length} 题）`;
-  }catch(e){
-    console.error(e);
-    alert('导出站点发布包失败：' + (e && e.message ? e.message : String(e)));
-  }
-});
 
+// 站点发布包（.zip，多文件 SPA）已随方案乙退役：做题站 = build-pages 目录页 + 单文件播放器。
 genLegacyQBankBtn && genLegacyQBankBtn.addEventListener('click', async () => {
   try{
     const arr = getExportArrayOrNull();
@@ -594,23 +508,243 @@ genLegacyQBankBtn && genLegacyQBankBtn.addEventListener('click', async () => {
     const html = await buildLegacyQuestionBankHtml(arr, {
       mode: publishMeta.mode,
       password: publishMeta.password,
+      bankId: publishMeta.id,
     });
     const defaults = guessPublishDefaults(arr);
     const fname = buildLegacyExportFilename(defaults.bankId);
     downloadTextAsFile(html, fname, 'text/html;charset=utf-8');
-    statusEl.textContent = `已导出兼容单 HTML：${fname}（${arr.length} 题，${publishMeta.mode === 'protected' ? '密码保护' : '公开'}）`;
+    statusEl.textContent = `已导出做题单 HTML：${fname}（${arr.length} 题，${publishMeta.mode === 'protected' ? '密码保护' : '公开'}）${exportRejectionSuffix()}`;
   }catch(e){
     console.error(e);
-    alert('导出兼容单 HTML 失败：' + (e && e.message ? e.message : String(e)));
+    alert('导出做题单 HTML 失败：' + (e && e.message ? e.message : String(e)));
   }
 });
 
-async function readImportedManifest(){
-  const file = manifestFileEl && manifestFileEl.files && manifestFileEl.files[0];
-  if (!file) return [];
-  const raw = await file.text();
-  return parseManifestTextHelper(raw);
+/* ---- 「发布到站点」：输出框 JSON 直接写入仓库 + 可选部署 ----
+   浏览器写不了文件、跑不了 wrangler，由 dev server 的 /api/local/publish-bank 代办
+   （与发布双击命令共用 publish-bank-core，仅 extractor.command / npm run dev 模式可用）。 */
+function setPublishSiteStatus(text, isError){
+  if (!publishSiteStatusEl) return;
+  publishSiteStatusEl.textContent = text || '';
+  publishSiteStatusEl.style.color = isError ? '#b91c1c' : '';
 }
+
+(async function probePublishBridge(){
+  try{
+    const res = await fetch('/api/local/publish-bank', { method: 'GET' });
+    publishBridgeAvailable = !!res.ok;
+  }catch(_e){
+    publishBridgeAvailable = false;
+  }
+  if (!publishBridgeAvailable) setPublishSiteStatus('直接发布需要通过 commands/extractor.command（dev 模式）打开提取器。');
+  updateExportButtons();
+  refreshSiteBanks();
+})();
+
+/* ---- 站点题库管理面板：列表 / 下架·恢复 / 删除 / 公开⇄加密 / 部署 ----
+   全部走 /api/local/bank-admin（与双击命令共用 publish-bank-core）。 */
+function setSiteBanksOpStatus(text, isError){
+  if (!siteBanksOpStatusEl) return;
+  siteBanksOpStatusEl.textContent = text || '';
+  siteBanksOpStatusEl.style.color = isError ? '#b91c1c' : '';
+}
+
+function renderSiteBanksList(manifest){
+  if (!siteBanksListEl) return;
+  lastSiteManifest = Array.isArray(manifest) ? manifest : [];
+  if (!publishBridgeAvailable){
+    if (siteBanksHintEl) siteBanksHintEl.textContent = '需要通过 commands/extractor.command（dev 模式）打开才能管理站点题库。';
+    siteBanksListEl.innerHTML = '';
+    return;
+  }
+  if (siteBanksHintEl) siteBanksHintEl.textContent = '';
+  siteBanksListEl.innerHTML = lastSiteManifest.map(e => {
+    const online = e.deploy !== false;
+    return `<div class="row" style="gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--border,#e5e7eb);padding:7px 0" data-bank-row="${escapeHTML(e.id)}">
+      <strong style="min-width:150px">${e.mode === 'protected' ? '🔒 ' : ''}${escapeHTML(e.title || e.id)}</strong>
+      <span class="meta">${escapeHTML(e.id)} · ${e.question_count ?? '?'} 题 · ${e.mode === 'protected' ? '加密' : '公开'} · ${online ? '在线' : '已下架'}</span>
+      <span style="flex:1"></span>
+      <button class="btn" data-bank-act="up" data-bank-id="${escapeHTML(e.id)}" title="目录页顺序上移" data-testid="bank-up-btn">↑</button>
+      <button class="btn" data-bank-act="down" data-bank-id="${escapeHTML(e.id)}" title="目录页顺序下移" data-testid="bank-down-btn">↓</button>
+      <button class="btn" data-bank-act="${online ? 'unlist' : 'restore'}" data-bank-id="${escapeHTML(e.id)}" data-testid="bank-${online ? 'unlist' : 'restore'}-btn">${online ? '下架' : '恢复上架'}</button>
+      <button class="btn" data-bank-act="convert" data-bank-id="${escapeHTML(e.id)}" data-testid="bank-convert-btn">${e.mode === 'protected' ? '转公开' : '转加密'}</button>
+      <button class="btn danger" data-bank-act="delete" data-bank-id="${escapeHTML(e.id)}" data-testid="bank-delete-btn">删除</button>
+    </div>`;
+  }).join('') || '<div class="meta">（清单为空）</div>';
+}
+
+async function refreshSiteBanks(){
+  if (!siteBanksListEl) return;
+  if (!publishBridgeAvailable){ renderSiteBanksList([]); return; }
+  try{
+    const m = await fetch('/api/local/publish-bank').then(r => r.json());
+    renderSiteBanksList((m && m.manifest) || []);
+  }catch(_e){
+    renderSiteBanksList([]);
+  }
+}
+
+async function bankAdmin(payload){
+  const res = await fetch('/api/local/bank-admin', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({ ok: false, error: '响应解析失败' }));
+  if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  if (Array.isArray(data.manifest)) renderSiteBanksList(data.manifest);
+  return data;
+}
+
+siteBanksRefreshBtn && siteBanksRefreshBtn.addEventListener('click', refreshSiteBanks);
+
+const siteUnlistAllBtn = $('#siteUnlistAllBtn');
+siteUnlistAllBtn && siteUnlistAllBtn.addEventListener('click', async () => {
+  const online = lastSiteManifest.filter(e => e && e.deploy !== false);
+  if (!online.length){ setSiteBanksOpStatus('当前没有在线题库，无需下架。'); return; }
+  if (!confirm(`把全部 ${online.length} 个在线题库下架？\n（文件保留，随时可逐个恢复；之后点部署可把线上清空）`)) return;
+  try{
+    for (const e of online) await bankAdmin({ action: 'unlist', id: e.id });
+    setSiteBanksOpStatus(`✅ 已全部下架（${online.length} 个）。点「🚀 部署当前清单」并确认后，线上将清空。`);
+  }catch(err){
+    setSiteBanksOpStatus(`❌ 批量下架中断：${err && err.message ? err.message : err}`, true);
+  }
+});
+
+siteBanksListEl && siteBanksListEl.addEventListener('click', async (ev) => {
+  const btn = ev.target && ev.target.closest ? ev.target.closest('[data-bank-act]') : null;
+  if (!btn) return;
+  const id = btn.dataset.bankId;
+  const act = btn.dataset.bankAct;
+  const entry = lastSiteManifest.find(e => e && e.id === id);
+  if (!entry) return;
+  try{
+    if (act === 'up' || act === 'down'){
+      const r = await bankAdmin({ action: 'move', id, delta: act === 'up' ? -1 : 1 });
+      setSiteBanksOpStatus(r.moved
+        ? `✅ 已${act === 'up' ? '上移' : '下移'}「${id}」。目录页顺序 = 此列表顺序（All Banks 合并卡固定最前），点部署后线上生效。`
+        : `「${id}」已经在${act === 'up' ? '最顶' : '最底'}了。`);
+    } else if (act === 'delete'){
+      if (!confirm(`删除「${entry.title || id}」？\n登记会移除；数据文件会移入回收目录 .bank-trash/（可手动找回）。`)) return;
+      const r = await bankAdmin({ action: 'delete', id });
+      setSiteBanksOpStatus(`✅ 已删除「${id}」${r.trashedTo ? `（数据已存入 ${r.trashedTo}，可找回）` : ''}。点「🚀 部署当前清单」后线上生效。`);
+    } else if (act === 'unlist'){
+      if (!confirm(`下架「${entry.title || id}」？站点上将不可见（文件保留，随时可恢复）。`)) return;
+      await bankAdmin({ action: 'unlist', id });
+      setSiteBanksOpStatus(`✅ 已下架「${id}」。点「🚀 部署当前清单」后线上生效。`);
+    } else if (act === 'restore'){
+      await bankAdmin({ action: 'restore', id });
+      setSiteBanksOpStatus(`✅ 已恢复上架「${id}」。点「🚀 部署当前清单」后线上生效。`);
+    } else if (act === 'convert'){
+      if (entry.mode === 'protected'){
+        const pw = prompt(`「${entry.title || id}」转公开：输入现有密码（用于解密）`);
+        if (pw == null || !pw) return;
+        await bankAdmin({ action: 'convert', id, password: pw });
+        setSiteBanksOpStatus(`✅ 「${id}」已转为公开（任何人可见题目与答案）。点部署后生效。`);
+      } else {
+        const p1 = prompt(`「${entry.title || id}」转加密：设置密码`);
+        if (p1 == null || !p1) return;
+        const p2 = prompt('再输一遍确认：');
+        if (p1 !== p2){ alert('两次密码不一致，已取消。'); return; }
+        await bankAdmin({ action: 'convert', id, newPassword: p1 });
+        setSiteBanksOpStatus(`✅ 「${id}」已转为 🔒 加密（不再进入合并练习页）。点部署后生效。`);
+      }
+    }
+  }catch(e){
+    setSiteBanksOpStatus(`❌ 操作失败：${e && e.message ? e.message : e}`, true);
+  }
+});
+
+siteDeployBtn && siteDeployBtn.addEventListener('click', async () => {
+  if (!publishBridgeAvailable || publishInFlight) return;
+  // 预检查：清单里一个在线题库都没有 = 这次部署会把线上清空——要用户显式确认（防误删保护的放行口）
+  const onlineCount = lastSiteManifest.filter(e => e && e.deploy !== false).length;
+  let allowEmpty = false;
+  if (!onlineCount){
+    if (!confirm('当前没有任何在线题库。\n继续部署会把线上站点清空为「暂无题库」状态（目录页保留，访客仍可本地导入 JSON 练习）。\n确定全部解除部署？')) return;
+    allowEmpty = true;
+  }
+  const target = siteDeployTargetSel ? siteDeployTargetSel.value : 'all';
+  publishInFlight = true;
+  updateExportButtons();
+  siteDeployBtn.disabled = true;
+  setSiteBanksOpStatus('部署中…（构建 + 上传约需 1 分钟，请勿关闭页面）');
+  try{
+    const data = await bankAdmin({ action: 'deploy', target, allowEmpty });
+    const bits = [allowEmpty ? '✅ 已清空线上站点（全部题库解除部署）' : '✅ 部署完成'];
+    if (target !== 'gh') bits.push('Cloudflare：https://question-bank-78u.pages.dev/');
+    if (target !== 'cf') bits.push('GitHub：https://shicheng0810.github.io/question-bank/（约 1 分钟生效）');
+    setSiteBanksOpStatus(bits.join('　·　'));
+  }catch(e){
+    setSiteBanksOpStatus(`❌ 部署失败：${e && e.message ? e.message : e}`, true);
+  }finally{
+    publishInFlight = false;
+    siteDeployBtn.disabled = false;
+    updateExportButtons();
+  }
+});
+
+publishSiteBtn && publishSiteBtn.addEventListener('click', async () => {
+  try{
+    const arr = getExportArrayOrNull();
+    if (!arr || !arr.length){
+      alert('没有可发布的题库：请先解析并导出 JSON。');
+      return;
+    }
+    const publishMeta = collectPublishMeta(arr);
+    if (publishMeta.mode === 'protected' && !publishMeta.password){
+      alert('密码保护模式需要先在上方填写发布密码。');
+      return;
+    }
+
+    // 撞 id 时先确认覆盖
+    let existing = null;
+    try{
+      const m = await fetch('/api/local/publish-bank').then(r => r.json());
+      existing = ((m && m.manifest) || []).find(e => e && e.id === publishMeta.id) || null;
+    }catch(_e){}
+    if (existing && !confirm(`题库「${existing.title || publishMeta.id}」已存在（${existing.question_count} 题，${existing.mode === 'protected' ? '🔒 加密' : '公开'}）。\n覆盖更新它？`)) return;
+
+    const target = publishTargetSel ? publishTargetSel.value : 'all';
+    publishInFlight = true;
+    updateExportButtons();
+    setPublishSiteStatus(target === 'none' ? '写入仓库中…' : '发布中…（构建 + 部署约需 1 分钟，请勿关闭页面）');
+
+    const res = await fetch('/api/local/publish-bank', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        questions: arr,
+        id: publishMeta.id,
+        title: publishMeta.title,
+        description: publishMeta.description,
+        tags: publishMeta.tags,
+        mode: publishMeta.mode,
+        password: publishMeta.password || '',
+        target,
+      }),
+    });
+    const data = await res.json().catch(() => ({ ok: false, error: '响应解析失败' }));
+    if (!res.ok || !data.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+    const bits = [`✅ 已${data.replaced ? '更新' : '发布'}「${data.id}」（${data.count} 题${data.entry && data.entry.mode === 'protected' ? '，🔒 加密' : ''}${data.rejectedCount ? `，剔除 ${data.rejectedCount} 条不完整` : ''}）`];
+    if (data.deploy && data.deploy.deployed){
+      if (data.urls && data.urls.cf) bits.push(`Cloudflare：${data.urls.cf}`);
+      if (data.urls && data.urls.gh) bits.push(`GitHub：${data.urls.gh}（约 1 分钟生效）`);
+    } else if (target === 'none'){
+      bits.push('已写入仓库未部署——之后可换目标再发，或跑 npm run deploy:cf');
+    }
+    if (data.deployError) bits.push(`⚠ 部署失败：${data.deployError}（题库已写入，可重试部署）`);
+    setPublishSiteStatus(bits.join('　·　'), !!data.deployError);
+    refreshSiteBanks();
+  }catch(e){
+    console.error(e);
+    setPublishSiteStatus(`❌ 发布失败：${e && e.message ? e.message : e}`, true);
+  }finally{
+    publishInFlight = false;
+    updateExportButtons();
+  }
+});
 
 function collectPublishMeta(arr){
   const defaults = guessPublishDefaults(arr);
@@ -643,7 +777,9 @@ function guessPublishDefaults(arr){
 }
 
 function buildLegacyExportFilename(bankId){
-  const stamp = new Date().toISOString().slice(0,10).replaceAll('-','');
+  // 本地时区日期（toISOString 是 UTC：晚上导出会写成“明天”的日期）
+  const d = new Date();
+  const stamp = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
   return `question_bank_${slugifyBankId(bankId || 'question-bank')}_${stamp}.html`;
 }
 
@@ -653,16 +789,6 @@ function buildLegacyExportFilename(bankId){
 
 
 
-function downloadBlobAsFile(blob, filename){
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename || 'download.zip';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 8000);
-}
 
 
 btnSelectAll.addEventListener('click', () => {
@@ -862,7 +988,10 @@ async function parseOne(i){
 
   try{
     setTopStatus(`解析：${d.name}`, false);
-    const raw = await d.file.text();
+    // latin1 保字节解码：MHTML 是字节格式，按 UTF-8 整体解码会把 QP/base64 体之外的高位字节
+    // 折叠成 >0xFF 码点，后续 charCodeAt&0xff 即截坏。文本 part 的真实编码由 part 自身还原。
+    const fileBytes = new Uint8Array(await d.file.arrayBuffer());
+    const raw = new TextDecoder('latin1').decode(fileBytes);
     const { html, htmlParts, cidMap } = parseMHTML(raw);
 
     const candidates = [];
@@ -873,6 +1002,11 @@ async function parseOne(i){
       seen.add(normalized);
       candidates.push(normalized);
     });
+    // 非 MHTML（直接保存的 .html 页面）：整个文件按 UTF-8 当 HTML 解析
+    if (!candidates.length){
+      const plain = new TextDecoder('utf-8').decode(fileBytes);
+      if (plain.trim()) candidates.push(plain);
+    }
 
     let bestParsed = [];
     for (const candidate of candidates){
@@ -881,6 +1015,15 @@ async function parseOne(i){
       if ((parsed?.length || 0) > (bestParsed?.length || 0)) {
         bestParsed = parsed;
       }
+    }
+
+    // 0 题不再静默当成功：明确报出这份存档不是可提取的经典测验页
+    if (!bestParsed.length){
+      const joined = candidates.join('\n');
+      const looksLikeNewQuizzes = /quiz_lti|external_tool|lti_iframe|tool_form/i.test(joined);
+      throw new Error(looksLikeNewQuizzes
+        ? '该存档是 New Quizzes（LTI/iframe）页面，MHTML 不包含题目内容，无法提取'
+        : '未识别到 Canvas 经典测验题块（.display_question）——这可能不是测验结果页');
     }
 
     d.parsed = bestParsed;
@@ -911,7 +1054,7 @@ function renderFileTable(){
       : d.err
         ? `<span class="badge wait">失败</span>`
         : d.parsedReady
-          ? `<span class="badge ${(info.pending || info.missingImgs) ? 'wait' : 'ok'}">${info.text}</span>`
+          ? `<span class="badge ${(info.pending || info.missingImgs || info.unsupported || info.conflicts) ? 'wait' : 'ok'}">${info.text}</span>`
           : `<span class="badge">未解析</span>`;
 
     tr.innerHTML = `
@@ -1010,8 +1153,8 @@ function updateExportButtons(){
     apiBaseUrl: apiBaseUrlEl && apiBaseUrlEl.value ? apiBaseUrlEl.value : '',
     apiKey: apiKeyEl && apiKeyEl.value ? apiKeyEl.value : '',
   });
-  if (genQBankBtn) genQBankBtn.disabled = buttonState.disableSiteZip;
   if (genLegacyQBankBtn) genLegacyQBankBtn.disabled = buttonState.disableLegacyHtml;
+  if (publishSiteBtn) publishSiteBtn.disabled = buttonState.disableLegacyHtml || !publishBridgeAvailable || publishInFlight;
 
   if (dryRunAiMCQEl) dryRunAiMCQEl.disabled = buttonState.disableAiDryRun;
   if (runAiMCQEl) runAiMCQEl.disabled = buttonState.disableAiRun;
@@ -1027,14 +1170,32 @@ function maybePrefillPublishFields(){
   savePublishSettings();
 }
 
+// 最近一次导出被校验闸剔除的记录（供导出成功提示补充说明；详单进 console.warn）
+let lastExportRejected = [];
+function applyExportValidation(merged){
+  const { valid, rejected } = validateQuestionBankRecords(merged);
+  lastExportRejected = rejected;
+  if (rejected.length){
+    console.warn('[export] 剔除不完整记录：', rejected.map(r => ({ id: r.record && r.record.id, reasons: r.reasons })));
+  }
+  return valid;
+}
+function exportRejectionSuffix(){
+  if (!lastExportRejected.length) return '';
+  const sample = lastExportRejected[0];
+  const why = sample && sample.reasons && sample.reasons[0] ? sample.reasons[0] : '不完整';
+  return `；已剔除 ${lastExportRejected.length} 条无法作答的记录（如：${why}，详见控制台）`;
+}
+
 function getExportArrayOrNull(){
   // Always merge/dedup before handing off to the publish ZIP or single-file HTML builders,
   // so a published bank never carries duplicate questions (the root cause of duplicated
   // questions in older exports). The merge fuses the same question across sources and keeps
   // every source reference; see buildUniqueMergedQuestionBankFromCollections.
+  // 出口统一过 schema 校验闸：不完整记录（缺答案/选项不足/未知结构）不再静默进发布物。
   const direct = tryParseJSONArray(out.value);
   if (direct){
-    const merged = buildUniqueMergedQuestionBankFromCollections([direct]);
+    const merged = applyExportValidation(buildUniqueMergedQuestionBankFromCollections([direct]));
     return merged.length ? merged : null;
   }
   const collections = [];
@@ -1043,7 +1204,7 @@ function getExportArrayOrNull(){
     collectFromUI(d);
     collections.push(buildQuestionBank(d.parsed, d.prefix, d.sourcePrefix));
   }
-  const merged = buildUniqueMergedQuestionBankFromCollections(collections);
+  const merged = applyExportValidation(buildUniqueMergedQuestionBankFromCollections(collections));
   return merged.length ? merged : null;
 }
 
@@ -1076,11 +1237,18 @@ function countImageUploadNeeded(parsed){
 function formatDatasetStatus(d){
   const pending = d && d.parsedReady ? countPendingAnswers(d.parsed) : 0;
   const missingImgs = d && d.parsedReady ? countImageUploadNeeded(d.parsed) : 0;
+  const parsed = (d && d.parsedReady && Array.isArray(d.parsed)) ? d.parsed : [];
+  const unsupported = parsed.reduce((n, q) => n + ((q && q.kind) === 'unknown' ? 1 : 0), 0);
+  const essays = parsed.reduce((n, q) => n + ((q && q.kind) === 'essay' ? 1 : 0), 0);
+  const conflicts = parsed.reduce((n, q) => n + (q && q.answerConflict ? 1 : 0), 0);
   const parts = [];
   if (d && d.parsedReady) parts.push(`${d.parsed.length} 题`);
   if (pending) parts.push(`缺答 ${pending}`);
   if (missingImgs) parts.push(`缺图 ${missingImgs}`);
-  return { pending, missingImgs, text: parts.join(' · ') };
+  if (conflicts) parts.push(`答案冲突 ${conflicts}（请核对）`);
+  if (unsupported) parts.push(`不支持题型 ${unsupported}（不导出）`);
+  if (essays) parts.push(`问答 ${essays}（不导出）`);
+  return { pending, missingImgs, unsupported, essays, conflicts, text: parts.join(' · ') };
 }
 
 function setDatasetStatusMessage(d){
@@ -1099,7 +1267,7 @@ function setDatasetStatusMessage(d){
   const info = formatDatasetStatus(d);
   const head = d.origin === 'qbank' ? '已导入' : '解析完成';
   const msg = info.text ? `${head}：${d.name} · ${info.text}` : `${head}：${d.name}`;
-  setTopStatus(msg, info.pending > 0 || info.missingImgs > 0);
+  setTopStatus(msg, info.pending > 0 || info.missingImgs > 0 || info.unsupported > 0 || info.conflicts > 0);
 }
 
 
@@ -1156,7 +1324,12 @@ function renderQuestions(d){
             ? (q.pairs || []).length > 0 && (q.pairs || []).every(p => String((p && p.right) || '').trim())
             : false;
 
-    const badge = autoOK ? `<span class="good">已自动识别</span>` : `<span class="bad">待人工确认</span>`;
+    const conflictLetters = Array.isArray(q.conflictSelectedIndexes)
+      ? q.conflictSelectedIndexes.map(i => String.fromCharCode(65 + i)).join('、')
+      : '';
+    const badge = q.answerConflict
+      ? `<span class="bad" title="该题拿了满分，但你当时勾选的选项（${conflictLetters || '?'}）≠ 页面标注的正确项。已按页面标注保留，请人工核对是哪种情况（regrade/全员给分/标注错误）。">答案冲突：满分但勾选(${conflictLetters || '?'})≠标注，请核对</span>`
+      : autoOK ? `<span class="good">已自动识别</span>` : `<span class="bad">待人工确认</span>`;
     const mergedImages = getQuestionImages(q);
     const sourceScreenshot = getQuestionSourceScreenshot(q);
     const compareImg = sourceScreenshot
@@ -1178,7 +1351,7 @@ function renderQuestions(d){
             ? '配对题（将拆成多道单选）'
             : kind === 'essay'
               ? '问答题'
-              : '未知题型';
+              : (q.qTypeName ? `未知题型（${q.qTypeName}）` : '未知题型');
 
     card.innerHTML = `
       <div class="qhead">
@@ -1294,6 +1467,29 @@ function blobToDataURL(blob){
   });
 }
 
+// 图片自动压缩：位图体积 >150KB 时缩到长边 ≤1200px、JPEG 85%，
+// 防 base64 撑爆导出 JSON / localStorage。SVG/GIF 保持原样；压缩无收益就保留原图。
+const IMG_MAX_DIM = 1200;
+const IMG_COMPRESS_THRESHOLD = 150 * 1024;
+async function compressImageBlobToDataURL(blob){
+  const type = String((blob && blob.type) || '').toLowerCase();
+  if (/svg|gif/.test(type) || !blob || blob.size <= IMG_COMPRESS_THRESHOLD) return blobToDataURL(blob);
+  try{
+    const bitmap = await createImageBitmap(blob);
+    const scale = Math.min(1, IMG_MAX_DIM / Math.max(bitmap.width, bitmap.height));
+    const w = Math.max(1, Math.round(bitmap.width * scale));
+    const h = Math.max(1, Math.round(bitmap.height * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(bitmap, 0, 0, w, h);
+    const compressed = canvas.toDataURL('image/jpeg', 0.85);
+    const original = await blobToDataURL(blob);
+    return compressed.length < original.length ? compressed : original;
+  }catch(_e){
+    return blobToDataURL(blob);
+  }
+}
+
 function isLikelyImageBlob(blob, href){
   const type = String((blob && blob.type) || '').toLowerCase();
   if (/^image\//.test(type)) return true;
@@ -1359,7 +1555,7 @@ async function importImageFromSourceURL(rawUrl){
     for (const run of attempts){
       try{
         const blob = await run();
-        return await blobToDataURL(blob);
+        return await compressImageBlobToDataURL(blob);
       }catch(err){
         lastErr = err;
       }
@@ -1455,7 +1651,7 @@ list.addEventListener('change', async (e) => {
     });
     if (!files.length) return;
 
-    const urls = (await Promise.all(files.map(readFileAsDataURL))).filter(Boolean);
+    const urls = (await Promise.all(files.map(compressImageBlobToDataURL))).filter(Boolean);
     q.uploadedImages = urls;
     renderQuestions(d);
     renderFileTable();
@@ -1598,44 +1794,6 @@ function collectFromUI(d){
 }
 
 
-function extractMatchingQuestionData(blk){
-  const rows = Array.from(blk.querySelectorAll('.answer .answer_match'));
-  if (!rows.length) return null;
-
-  const pairs = [];
-  const pool = [];
-
-  rows.forEach(row => {
-    let left = '';
-    const leftHtml = row.querySelector('.answer_match_left_html');
-    if (leftHtml) left = cleanHTML(leftHtml).trim();
-    if (!left){
-      const leftText = row.querySelector('.answer_match_left');
-      if (leftText) left = cleanHTML(leftText).trim();
-    }
-
-    const select = row.querySelector('.answer_match_right select');
-    const options = select ? Array.from(select.querySelectorAll('option')) : [];
-    const selected =
-      (select && select.selectedOptions && select.selectedOptions[0]) ||
-      options.find(opt => opt.hasAttribute('selected')) ||
-      options[0] ||
-      null;
-
-    const right = cleanHTMLString(selected ? (selected.textContent || selected.value || '') : '').trim();
-
-    options.forEach(opt => {
-      const t = cleanHTMLString(opt.textContent || opt.value || '').trim();
-      if (t) pool.push(t);
-    });
-    if (right) pool.push(right);
-
-    if (left || right) pairs.push({ left, right });
-  });
-
-  if (!pairs.length) return null;
-  return { pairs, choicePool: uniqueNonEmptyStrings(pool) };
-}
 
 
 /* -------------------- 导出 QUESTION_BANK -------------------- */
@@ -1659,623 +1817,6 @@ function buildUniqueMergedQuestionBank(){
   return buildUniqueMergedQuestionBankFromCollections(collections);
 }
 
-/* -------------------- MHTML 解析（内嵌图片） -------------------- */
-function scoreMHTMLHtmlCandidate(html, loc=''){
-  const src = String(html || '');
-  const where = String(loc || '');
-  let score = 0;
-  if (/display_question\s+question/i.test(src)) score += 10000;
-  if (/question_text|original_question_text|question_name/i.test(src)) score += 6000;
-  if (/assessment_results|id=["']questions["']/i.test(src)) score += 4000;
-  if (/quiz-submission|quiz_sortable|question_holder/i.test(src)) score += 2500;
-  if (/Question\s+1/i.test(src)) score += 1200;
-  if (/\/quizzes\/|headless=1/i.test(where)) score += 1500;
-  score += Math.min(src.length, 200000) / 1000;
-  return score;
-}
-
-function parseMHTML(text){
-  const firstHeaderEnd = text.indexOf('\r\n\r\n') >= 0 ? text.indexOf('\r\n\r\n') : text.indexOf('\n\n');
-  if (firstHeaderEnd < 0) return { html:'', htmlParts:[], cidMap:{} };
-  const head = text.slice(0, firstHeaderEnd + 2);
-  const m = head.match(/boundary="?([^"\r\n]+)"?/i);
-  if(!m) return { html:'', htmlParts:[], cidMap:{} };
-
-  const boundary = m[1];
-  const sep = '--' + boundary;
-  const parts = text.split(sep).slice(1).filter(p => !p.startsWith('--'));
-
-  const cidMap = {};
-  const htmlParts = [];
-  let html = '';
-  let bestHtmlScore = -Infinity;
-
-  for (let raw of parts){
-    raw = raw.replace(/^\s+|\s+$/g,'').replace(/--\s*$/,'').trim();
-    const split = raw.search(/\r?\n\r?\n/);
-    if (split < 0) continue;
-
-    const headerText = raw.slice(0, split);
-    const bodyText   = raw.slice(split).replace(/^\r?\n/,'');
-
-    const h = parseHeaders(headerText);
-    const ctype = (h['content-type']||'').toLowerCase();
-    const enc   = (h['content-transfer-encoding']||'').toLowerCase();
-    const cid   = (h['content-id']||'').replace(/[<>]/g,'').trim();
-    const loc   = (h['content-location']||'').trim();
-
-    let bytes;
-    if (enc.includes('base64')){
-      const b64 = bodyText.replace(/\s+/g,'');
-      bytes = base64ToBytes(b64);
-    }else if (enc.includes('quoted-printable')){
-      bytes = qpToBytes(bodyText);
-    }else{
-      bytes = strToBytes(bodyText);
-    }
-
-    if (ctype.startsWith('text/html')){
-      const htmlDecoded = bytesToUTF8(bytes);
-      if (htmlDecoded) {
-        htmlParts.push(htmlDecoded);
-        const score = scoreMHTMLHtmlCandidate(htmlDecoded, loc);
-        if (score > bestHtmlScore) {
-          bestHtmlScore = score;
-          html = htmlDecoded;
-        }
-      }
-    }else if (ctype.startsWith('image/') || ctype.startsWith('application/')){
-      const b64 = bytesToBase64(bytes);
-      const dataURL = `data:${ctype};base64,${b64}`;
-      if (cid) cidMap['cid:'+cid] = dataURL;
-      if (loc) cidMap[loc] = dataURL;
-    }
-  }
-  return { html, htmlParts, cidMap };
-}
-
-function rewriteSources(html, map){
-  return html.replace(/(<img[^>]+src=["'])([^"']+)(["'][^>]*>)/gi,(m,p1,src,p3)=>{
-    const key=(src||'').replace(/&amp;/g,'&');
-    if(map[key]) return p1+map[key]+p3;
-    if(key.startsWith('cid:') && map[key]) return p1+map[key]+p3;
-    if(key.startsWith('cid:') && map[key.slice(4)]) return p1+map[key.slice(4)]+p3;
-    return m;
-  });
-}
-
-function parseQuestionScore(blk){
-  const holder = blk.querySelector('.user_points');
-  if (!holder) return null;
-  const txt = cleanHTML(holder).replace(/pts?\b/gi, '').trim();
-  const m = txt.match(/(-?\d+(?:\.\d+)?)\s*\/\s*(-?\d+(?:\.\d+)?)/);
-  if (!m) return null;
-  const earned = Number(m[1]);
-  const possible = Number(m[2]);
-  if (!Number.isFinite(earned) || !Number.isFinite(possible)) return null;
-  return { earned, possible };
-}
-
-function hasFullCredit(scoreInfo){
-  return !!(scoreInfo && Number.isFinite(scoreInfo.earned) && Number.isFinite(scoreInfo.possible) && scoreInfo.possible > 0 && Math.abs(scoreInfo.earned - scoreInfo.possible) < 1e-9);
-}
-
-function hasAnyBlankAnswers(blanks){
-  if (!Array.isArray(blanks) || !blanks.length) return false;
-  return blanks.some(arr => Array.isArray(arr) && arr.some(v => String(v || '').trim()));
-}
-
-function extractSelectedChoiceInfo(li){
-  const cls = li.className || '';
-  const input = li.querySelector('input[type="radio"],input[type="checkbox"]');
-  const titleStr = li.getAttribute('title') || '';
-  return /\bselected_answer\b/i.test(cls) || !!(input && input.checked) || /\byou selected this answer\b/i.test(titleStr);
-}
-
-/* -------------------- Canvas HTML 解析（灰箭头=正确） -------------------- */
-function parseCanvasHTML(html){
-  const dom = new DOMParser().parseFromString(html,'text/html');
-  const blocks = dom.querySelectorAll('.display_question.question');
-  const tmp = [];
-
-  blocks.forEach((blk, idx)=>{
-    const nameEl = blk.querySelector('.question_name');
-    const scoreInfo = parseQuestionScore(blk);
-    const numStr = nameEl ? (nameEl.textContent.match(/\d+/)||[])[0] : (idx+1);
-    const num = Number(numStr);
-
-    let qtext = '';
-    const visibleText = blk.querySelector('.question_text.user_content') || blk.querySelector('.question_text');
-    if (visibleText) qtext = cleanHTML(visibleText).trim();
-    if (!qtext){
-      const ta = blk.querySelector('.original_question_text textarea');
-      if (ta) qtext = cleanHTMLString(ta.value || ta.textContent || '').trim();
-    }
-
-    const rawImageSources = Array.from(blk.querySelectorAll('.question_text img, .text img'))
-      .map(img=>(img.getAttribute('src')||'').trim())
-      .filter(s=>{
-        if (!s) return false;
-        if (/^(javascript:|about:blank)/i.test(s)) return false;
-        return true;
-      });
-    const images = rawImageSources.filter(s => /^(data:image\/|data:application\/)/i.test(s));
-    const missingImageSources = rawImageSources.filter(s => !/^(data:image\/|data:application\/)/i.test(s));
-    const expectedImageCount = rawImageSources.length;
-    const missingImageCount = missingImageSources.length;
-
-    const clsAll = blk.className || '';
-
-    // -------- 选择题：带 answer 类且含 radio/checkbox --------
-    const rawItems = Array.from(blk.querySelectorAll('li,div')).filter(el=>{
-      const cls = el.className || '';
-      if (!/\banswer\b/i.test(cls)) return false;
-      return !!el.querySelector('input[type="radio"],input[type="checkbox"]');
-    });
-
-    if (rawItems.length){
-      const isMulti =
-        /\bmultiple_answers_question\b/i.test(clsAll) ||
-        rawItems.some(li => !!li.querySelector('input[type="checkbox"]'));
-
-      const choices = rawItems.map(li=>{
-        let txt = '';
-        const at = li.querySelector('.answer_text');
-        if (at) txt = cleanHTML(at).trim();
-        if (!txt) txt = cleanHTML(li).trim();
-
-        const cls = li.className || '';
-        const hasCorrectClass = /\bcorrect\b/i.test(cls) || /\bcorrect_answer\b/i.test(cls);
-
-        const icon = li.querySelector('[class*="icon-"], .ic-Icon, svg, [data-icon], [data-testid]');
-        let iconStr = '';
-        if (icon){
-          iconStr = [
-            icon.className || '',
-            icon.getAttribute && (icon.getAttribute('aria-label')||''),
-            icon.getAttribute && (icon.getAttribute('title')||''),
-            icon.getAttribute && (icon.getAttribute('data-icon')||''),
-            icon.getAttribute && (icon.getAttribute('data-testid')||''),
-            icon.getAttribute && (icon.getAttribute('name')||''),
-          ].join(' ');
-        }
-
-        const iconCorrect =
-          /correct|check|right|arrow|success/i.test(iconStr) &&
-          !/wrong|error|incorrect|cross|x_icon|x(?![a-z])/i.test(iconStr);
-
-        // NOTE: do NOT treat option text containing the word "correct" as correctness signal
-        // (e.g. choice text itself may include "correct", which caused false positives).
-        const titleStr = li.getAttribute('title') || '';
-        const hintCorrect =
-          /\b(correct|正确)\b/i.test(li.getAttribute('aria-label')||'') ||
-          !!li.querySelector(
-            '.answer_arrow.correct, .answer_indicator.correct,' +
-            ' .answer_arrow[aria-label*="Correct"], .answer_arrow[aria-label*="正确"],' +
-            ' .answer_indicator[aria-label*="Correct"], .answer_indicator[aria-label*="正确"]'
-          ) ||
-          /(this was the correct answer|was the correct answer|正确答案)/i.test(titleStr);
-
-        const isCorrect = !!(hasCorrectClass || iconCorrect || hintCorrect);
-        const isSelected = extractSelectedChoiceInfo(li);
-
-        return { text: txt, isCorrect, isSelected };
-      });
-
-      let answerDerivedFromScore = false;
-      let answerDerivedFromCanvasCorrectBlock = false;
-      const selectedIndexes = choices.map((c,i)=> c.isSelected ? i : -1).filter(i => i >= 0);
-      const explicitCorrectIndexes = choices.map((c,i)=> c.isCorrect ? i : -1).filter(i => i >= 0);
-      if (hasFullCredit(scoreInfo)) {
-        const sameAnswerSet =
-          selectedIndexes.length === explicitCorrectIndexes.length &&
-          selectedIndexes.every((idx, pos) => idx === explicitCorrectIndexes[pos]);
-
-        // 特殊类型：页面可能显示红叉/灰箭头，但题目实际拿满分。
-        // 这时应以“你原本勾选的选项”为准，并覆盖页面展示出来的灰箭头正确项。
-        if (selectedIndexes.length && !sameAnswerSet) {
-          answerDerivedFromScore = true;
-          if (isMulti){
-            choices.forEach((c,i)=>{ c.isCorrect = selectedIndexes.includes(i); });
-          }else{
-            choices.forEach((c,i)=> c.isCorrect = (i === selectedIndexes[0]));
-          }
-        } else if (!explicitCorrectIndexes.length && selectedIndexes.length) {
-          answerDerivedFromScore = true;
-          if (isMulti){
-            choices.forEach((c,i)=>{ c.isCorrect = selectedIndexes.includes(i); });
-          }else{
-            choices.forEach((c,i)=> c.isCorrect = (i === selectedIndexes[0]));
-          }
-        }
-      } else if (shouldUseSelectedAnswersAsCorrectFallback({ clsAll, explicitCorrectIndexes, selectedIndexes })) {
-        answerDerivedFromCanvasCorrectBlock = true;
-        if (isMulti){
-          choices.forEach((c,i)=>{ c.isCorrect = selectedIndexes.includes(i); });
-        }else{
-          choices.forEach((c,i)=> c.isCorrect = (i === selectedIndexes[0]));
-        }
-      }
-
-      choices.forEach(c=>{ delete c.isSelected; });
-      const cleanedQtext = stripDuplicatedChoicesFromQtext(qtext, choices);
-      tmp.push({ num, qtext: cleanedQtext, images, uploadedImages: [], expectedImageCount, missingImageCount, missingImageSources, kind:'choice', isMulti, choices, scoreInfo, answerDerivedFromScore, answerDerivedFromCanvasCorrectBlock });
-      return;
-    }
-
-
-    // -------- 配对题：matching_question -> 每个左侧子项后续导出为 1 道单选题 --------
-    const isMatching = /matching_question/i.test(clsAll);
-    if (isMatching){
-      const matchData = extractMatchingQuestionData(blk);
-      if (matchData && matchData.pairs && matchData.pairs.length){
-        tmp.push({
-          num,
-          qtext,
-          images,
-          uploadedImages: [],
-          expectedImageCount,
-          missingImageCount,
-          missingImageSources,
-          kind:'matching',
-          pairs: matchData.pairs,
-          choicePool: matchData.choicePool,
-          scoreInfo,
-        });
-        return;
-      }
-    }
-
-    // -------- 填空题：short_answer / fill_in / numerical / fill_in_multiple_blanks --------
-    const isFill =
-      /short_answer_question|fill_in.*question|numerical_question/i.test(clsAll);
-
-    if (isFill){
-      // 优先处理“多空题 Answer 1/2/3...”这种结构（每空可能有多个可接受答案）
-      const groupBlanks = extractFillBlanksFromAnswerGroups(blk);
-      let blanks = (groupBlanks && groupBlanks.length)
-        ? groupBlanks
-        : normalizeBlankSets(extractTextAnswerSets(blk));
-
-      let answerDerivedFromScore = false;
-      if (!hasAnyBlankAnswers(blanks) && hasFullCredit(scoreInfo)) {
-        const selectedBlanks = extractSelectedFillAnswers(blk);
-        if (hasAnyBlankAnswers(selectedBlanks)) {
-          blanks = selectedBlanks;
-          answerDerivedFromScore = true;
-        }
-      }
-
-      // 生成可用于题库做题的「带空格输入框」HTML（后续 question_bank 用）
-      const qhtml = buildFillQuestionHTML(blk, blanks.length);
-
-      tmp.push({ num, qtext, images, uploadedImages: [], expectedImageCount, missingImageCount, missingImageSources, kind:'fill', blanks, qhtml, scoreInfo, answerDerivedFromScore });
-      return;
-    }
-
-    // -------- 问答题（无标准答案）--------
-    const isEssay = /essay_question/i.test(clsAll);
-    if (isEssay){
-      // 这类主观题直接忽略，不进入预览与导出
-      return;
-    }
-
-    tmp.push({ num, qtext, images, uploadedImages: [], expectedImageCount, missingImageCount, missingImageSources, kind:'unknown', scoreInfo });
-  });
-
-  const byNum = new Map();
-  const score = (q) => {
-    const base =
-      q.kind === 'choice'
-        ? (q.choices?.length||0)
-        : q.kind === 'fill'
-          ? (q.blanks?.reduce((s,b)=>s+(b?.length||0),0) || 0)
-          : q.kind === 'matching'
-            ? (q.pairs?.length || 0)
-            : 0;
-    return base + getQuestionImages(q).length;
-  };
-
-  for (const q of tmp){
-    const old = byNum.get(q.num);
-    if (!old) byNum.set(q.num, q);
-    else if (score(q) > score(old)) byNum.set(q.num, q);
-  }
-
-  return Array.from(byNum.values()).sort((a,b)=>a.num-b.num);
-}
-
-function extractSelectedFillBlanksFromAnswerGroups(blk){
-  const groups = Array.from(blk.querySelectorAll('.answers .answer_group'));
-  if (!groups.length) return null;
-
-  const hasHeading = groups.some(g => !!g.querySelector('.answer-group-heading'));
-  if (!hasHeading) return null;
-
-  const blanks = [];
-  groups.forEach(g=>{
-    const set = new Set();
-
-    g.querySelectorAll('.answer.selected_answer .answer_type.short_answer input[name="answer_text"], .answer.selected_answer .answer_type.short_answer textarea[name="answer_text"]').forEach(el=>{
-      const v = (el.value || el.getAttribute('value') || '').trim();
-      if (v) set.add(v);
-    });
-
-    g.querySelectorAll('.answer.selected_answer .select_answer .answer_text, .answer.selected_answer .answer_text').forEach(el=>{
-      const t = cleanAnswerText(el);
-      if (t) set.add(t);
-    });
-
-    blanks.push(Array.from(set));
-  });
-
-  return blanks;
-}
-
-function extractSelectedTextAnswerSets(blk){
-  const nodes = Array.from(blk.querySelectorAll('.answers .answer.selected_answer'));
-  const sets = [];
-
-  nodes.forEach(node=>{
-    const vals = [];
-    node.querySelectorAll('input[type="text"], textarea').forEach(el=>{
-      const v = (el.value || el.getAttribute('value') || el.textContent || '').trim();
-      if (!v) return;
-      if (!vals.includes(v)) vals.push(v);
-    });
-
-    if (!vals.length){
-      const txts = Array.from(node.querySelectorAll('.answer_text, .answer_html'))
-        .map(el=>cleanHTML(el).trim())
-        .filter(Boolean);
-      if (txts.length) vals.push(txts[0]);
-    }
-
-    if (vals.length) sets.push(vals);
-  });
-
-  const seen = new Set();
-  const out = [];
-  for (const s of sets){
-    const key = s.join('||');
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(s);
-  }
-  return out;
-}
-
-function extractSelectedFillAnswers(blk){
-  const groupBlanks = extractSelectedFillBlanksFromAnswerGroups(blk);
-  if (groupBlanks && groupBlanks.length) return groupBlanks;
-  return normalizeBlankSets(extractSelectedTextAnswerSets(blk));
-}
-
-// 多空填空题（Answer 1/2/3...）抽取：每个空独立收集可接受答案（含“灰箭头”给的替代答案）
-function extractFillBlanksFromAnswerGroups(blk){
-  const groups = Array.from(blk.querySelectorAll('.answers .answer_group'));
-  if (!groups.length) return null;
-
-  // 只有存在 Answer 1/2/... heading 才认为是“多空题分组结构”
-  const hasHeading = groups.some(g => !!g.querySelector('.answer-group-heading'));
-  if (!hasHeading) return null;
-
-  const blanks = [];
-  groups.forEach(g=>{
-    const set = new Set();
-
-    // 1) Canvas 给出的 canonical correct（灰箭头）——只抓 answer_text
-    g.querySelectorAll('.answer.correct_answer .select_answer .answer_text').forEach(el=>{
-      const t = cleanAnswerText(el);
-      if (t) set.add(t);
-    });
-
-    // 2) 有些页面正确值在 input/textarea value 里
-    g.querySelectorAll('.answer.correct_answer .answer_type.short_answer input[name="answer_text"], .answer.correct_answer .answer_type.short_answer textarea[name="answer_text"]').forEach(el=>{
-      const v = (el.value || el.getAttribute('value') || '').trim();
-      if (v) set.add(v);
-    });
-
-    // 3) 如果“你填写的答案”本身也判对（绿色✅），也作为可接受答案（排除 answer_for_* 元数据容器）
-    g.querySelectorAll('.answer.selected_answer.correct_answer .select_answer .answer_text, .answer.selected_answer.correct_answer .answer_text').forEach(el=>{
-      const t = cleanAnswerText(el);
-      if (t) set.add(t);
-    });
-
-    blanks.push(Array.from(set));
-  });
-
-  return blanks;
-}
-
-// 清洗答案文本：去掉 icon / hidden / screenreader-only / arrow 等，只保留可见文字
-function cleanAnswerText(el){
-  if (!el) return '';
-  const clone = el.cloneNode(true);
-  clone.querySelectorAll('.hidden,.screenreader-only,span.hidden,span.id,.id,.answer_arrow,[class*="icon-"],svg,i').forEach(n=>n.remove());
-  return (clone.textContent || '')
-    .replace(/\u00a0/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-// 生成“题干里带输入框”的 HTML：把 Canvas 原来的 input（含正确答案 value）替换成空白输入框
-// 这个字段会导出为 question_html，之后更新 question_bank 用它把输入框放在正确位置
-function buildFillQuestionHTML(blk, expectedBlankCount){
-  const qt = blk.querySelector('.question_text.user_content') || blk.querySelector('.question_text');
-  if (!qt) return '';
-
-  const clone = qt.cloneNode(true);
-  clone.querySelectorAll('script,style,button,a,.links,.move,.regrade_option').forEach(n=>n.remove());
-
-  // 1) 如果题干里本身就有 input/textarea（少见，但存在），直接替换成 qb-blank
-  let i = 1;
-  const rawInputs = Array.from(clone.querySelectorAll('input.question_input, input[type="text"], textarea'));
-  rawInputs.forEach(inp=>{
-    const el = document.createElement('input');
-    el.type = 'text';
-    el.className = 'qb-blank';
-    el.setAttribute('data-blank', String(i));
-    el.setAttribute('autocomplete', 'off');
-    el.setAttribute('spellcheck', 'false');
-    el.setAttribute('placeholder', '_____');
-    el.value = '';
-    inp.replaceWith(el);
-    i++;
-  });
-
-  // 2) 题干里没有 input 的场景：用“_____/---”占位替换成 qb-blank（典型：单空短答题）
-  if (!rawInputs.length && expectedBlankCount && expectedBlankCount > 0){
-    const placeholderRe = /_{3,}|\[\s*\]|\(\s*\)|[‐‑‒–—―-]{3,}/; // 3+ underscores or long dashes
-    let inserted = 0;
-
-    const walker = document.createTreeWalker(clone, NodeFilter.SHOW_TEXT, null);
-    const textNodes = [];
-    while (walker.nextNode()) textNodes.push(walker.currentNode);
-
-    for (const tn of textNodes){
-      if (inserted >= expectedBlankCount) break;
-      const original = tn.textContent || '';
-      if (!placeholderRe.test(original)) continue;
-
-      // 逐段拆分：每次只替换一个占位，剩余部分再作为新的 text node 继续处理（while 循环）
-      let rest = original;
-      const frag = document.createDocumentFragment();
-
-      while (inserted < expectedBlankCount){
-        const m = rest.match(placeholderRe);
-        if (!m) break;
-        const idx = rest.search(placeholderRe);
-        if (idx > 0) frag.appendChild(document.createTextNode(rest.slice(0, idx)));
-
-        const el = document.createElement('input');
-        el.type = 'text';
-        el.className = 'qb-blank';
-        el.setAttribute('data-blank', String(inserted + 1));
-        el.setAttribute('autocomplete', 'off');
-        el.setAttribute('spellcheck', 'false');
-        el.setAttribute('placeholder', '_____');
-        el.value = '';
-        frag.appendChild(el);
-
-        rest = rest.slice(idx + m[0].length);
-        inserted += 1;
-      }
-
-      if (rest) frag.appendChild(document.createTextNode(rest));
-      tn.parentNode.replaceChild(frag, tn);
-    }
-
-    // 3) 如果题干里没有足够占位，则把剩余空补到末尾（不中断流程）
-    if (inserted < expectedBlankCount){
-      const p = document.createElement('p');
-      p.textContent = ' ';
-      for (let k=inserted+1;k<=expectedBlankCount;k++){
-        const el = document.createElement('input');
-        el.type = 'text';
-        el.className = 'qb-blank';
-        el.setAttribute('data-blank', String(k));
-        el.setAttribute('placeholder', '_____');
-        el.value = '';
-        p.appendChild(el);
-        p.appendChild(document.createTextNode(' '));
-      }
-      clone.appendChild(p);
-    }
-  }
-
-  return clone.innerHTML;
-}
-
-// 从 Canvas 回顾页抽取填空题的正确答案（兼容 multiple blanks）
-function extractTextAnswerSets(blk){
-  // 优先：正确答案区域
-  const nodes = Array.from(blk.querySelectorAll('.answers .answer.correct_answer'));
-  const sets = [];
-
-  nodes.forEach(node=>{
-    const vals = [];
-    node.querySelectorAll('input[type="text"], textarea').forEach(el=>{
-      const v = (el.value || el.getAttribute('value') || el.textContent || '').trim();
-      if (!v) return;
-      if (!vals.includes(v)) vals.push(v);
-    });
-    if (vals.length) sets.push(vals);
-  });
-
-  // 兜底：部分页面可能没有 input/textarea，而是纯文本
-  if (!sets.length){
-    const txts = Array.from(blk.querySelectorAll('.answers .answer.correct_answer .answer_text, .answers .answer.correct_answer .answer_html'))
-      .map(el=>cleanHTML(el).trim())
-      .filter(Boolean);
-    if (txts.length) sets.push([txts[0]]);
-  }
-
-  // 去重（按整组）
-  const seen = new Set();
-  const out = [];
-  for (const s of sets){
-    const key = s.join('||');
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(s);
-  }
-  return out;
-}
-
-// 把「每一组可接受答案」归并成「每一空的可接受答案集合」：blanks[blankIndex] = [a,b,c...]
-function normalizeBlankSets(sets){
-  const max = Math.max(0, ...sets.map(s=>s.length));
-  if (!max) return [];
-  const blanks = Array.from({length:max}, ()=>[]);
-  sets.forEach(s=>{
-    for (let i=0;i<max;i++){
-      const v = (s[i]||'').trim();
-      if (!v) continue;
-      if (!blanks[i].includes(v)) blanks[i].push(v);
-    }
-  });
-  return blanks;
-}
-
-
-
-// Canvas \u7684 .question_text \u6709\u65f6\u4f1a\u628a\u9009\u9879\u4e5f\u5199\u5728\u9898\u5e72\u672b\u5c3e\uff0c\u5bfc\u81f4 qtext \u4e0e choices \u91cd\u590d\u3002
-// \u8fd9\u91cc\u68c0\u6d4b qtext \u672b\u5c3e\u82e5\u5e72\u884c\u662f\u5426\u80fd\u5728 choices \u91cc\u9010\u4e00\u5339\u914d\u5230\uff0c\u82e5 \u22652 \u884c\u5339\u914d\u5219\u5265\u79bb\u3002
-function stripDuplicatedChoicesFromQtext(qtext, choices){
-  const text = String(qtext || '');
-  if (!text) return text;
-  const choiceTexts = (Array.isArray(choices) ? choices : [])
-    .map(c => normChoiceLine(c && (c.text != null ? c.text : c)))
-    .filter(Boolean);
-  if (choiceTexts.length < 2) return text;
-  const choiceSet = new Set(choiceTexts);
-
-  const lines = text.split(/\r?\n/);
-  let cutAt = lines.length;
-  let matched = 0;
-  for (let i = lines.length - 1; i >= 0; i--){
-    const norm = normChoiceLine(lines[i]);
-    if (!norm){ cutAt = i; continue; } // skip blank/whitespace line
-    if (choiceSet.has(norm)){
-      cutAt = i;
-      matched++;
-      continue;
-    }
-    break;
-  }
-  if (matched < 2) return text;
-  return lines.slice(0, cutAt).join('\n').replace(/[ \t]+$/,'');
-}
-function normChoiceLine(value){
-  return String(value == null ? '' : value)
-    .replace(/\u00a0/g, ' ')
-    .replace(/^[\s\u2022\u00b7\u25cf\u25cb\u25e6\-*]+/, '')
-    .replace(/^[(\[]?\s*[A-Ha-h0-9]{1,2}\s*[).\uff0e\u3001:\uff1a\-]\s+/, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
-}
 
 function sanitizeDisplayHref(raw){
   const s = String(raw || '').trim();

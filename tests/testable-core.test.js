@@ -18,6 +18,7 @@ import {
   parseHeaders,
   qpToBytes,
   safeJSONStringForScript,
+  convertQuestionBankItemToParsed,
   shouldUseSelectedAnswersAsCorrectFallback,
 } from '../src/lib/testable-core.js';
 
@@ -395,5 +396,63 @@ describe('Canvas selected-answer fallback', () => {
       choices: ['free exposure.', 'open assembly.'],
       answer: 0,
     });
+  });
+});
+
+describe('merge key 收敛（A9/A10 修复）', () => {
+  const q = (over = {}) => ({
+    id: 'a-1', question: 'Same stem?', choices: ['x', 'y', 'z'], answer: 1, source: 'S1 – Q1', ...over,
+  });
+
+  it('图片不再参与合并 key：同题一边有图一边缺图也合并（图取并集）', () => {
+    const merged = buildUniqueMergedQuestionBankFromCollections([
+      [q()],
+      [q({ id: 'b-1', source: 'S2 – Q3', image: 'data:image/png;base64,xyz' })],
+    ]);
+    expect(merged.length).toBe(1);
+    expect(merged[0].image).toBe('data:image/png;base64,xyz');
+    expect(merged[0].source).toEqual(['S1 – Q1', 'S2 – Q3']);
+  });
+
+  it('无答案的同题被吸收进有答案的那条（题干+完整选项集合唯一命中）', () => {
+    const merged = buildUniqueMergedQuestionBankFromCollections([
+      [q()],
+      [q({ id: 'b-1', source: 'S2 – Q3', answer: -1 })],
+    ]);
+    expect(merged.length).toBe(1);
+    expect(merged[0].answer).toBe(1);
+    expect(merged[0].source).toEqual(['S1 – Q1', 'S2 – Q3']);
+  });
+
+  it('同干同选项但答案不同的两条保持独立，无答案条目不做猜测合并', () => {
+    const merged = buildUniqueMergedQuestionBankFromCollections([
+      [q(), q({ id: 'a-2', source: 'S1 – Q2', answer: 2 })],
+      [q({ id: 'b-1', source: 'S2 – Q3', answer: -1 })],
+    ]);
+    // 两条有答案的不互并；无答案的命中两条 → 安全起见保留独立
+    expect(merged.length).toBe(3);
+  });
+});
+
+describe('round-trip 字段透传（导出→导入→导出 不丢字段）', () => {
+  it('answer_sets / explanation / section / tags / answer_source 全程保留', () => {
+    const exported = [{
+      id: 'rt-1', question: 'Fill it ____', type: 'fill', blanks: [['8', 'eight']],
+      answer_sets: [[['8'], ['eight']]],
+      explanation: 'because reasons', section: 'Ch.3', tags: ['t1', 't2'],
+      source: 'Src – Q1',
+    }, {
+      id: 'rt-2', question: 'Pick', choices: ['a', 'b'], answer: 0,
+      answer_source: 'score', explanation: 'exp2', source: 'Src – Q2',
+    }];
+    const parsed = exported.map((item, i) => convertQuestionBankItemToParsed(item, i, { prefix: 'rt' }));
+    const round = buildQuestionBank(parsed, 'rt', 'Src');
+    expect(round[0].answer_sets).toEqual([[['8'], ['eight']]]);
+    expect(round[0].explanation).toBe('because reasons');
+    expect(round[0].section).toBe('Ch.3');
+    expect(round[0].tags).toEqual(['t1', 't2']);
+    expect(round[1].answer_source).toBe('score');
+    expect(round[1].explanation).toBe('exp2');
+    expect(round[1].id).toBe('rt-2'); // preserveOriginalMeta 保 id
   });
 });

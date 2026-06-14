@@ -6,11 +6,13 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
-    "build:site": "SITE_ONLY=1 vite build",
     "build:pages": "node scripts/build-pages.mjs",
+    "deploy:cloudflare": "npm run build:pages && npx wrangler pages deploy docs --project-name=question-bank",
+    "deploy:github": "npm run build:pages && node scripts/deploy-gh-mirror.mjs",
+    "deploy:cf": "npm run build:pages && npx wrangler pages deploy docs --project-name=question-bank && node scripts/deploy-gh-mirror.mjs",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "rapidocr:install": "python3 -m venv .venv-rapidocr && .venv-rapidocr/bin/python -m pip install --upgrade pip && .venv-rapidocr/bin/python -m pip install -r requirements-rapidocr.txt",
+    "rapidocr:install": "python3 -m venv .venv-rapidocr && .venv-rapidocr/bin/python -m pip install --upgrade pip && .venv-rapidocr/bin/python -m pip install -r scripts/requirements-rapidocr.txt",
     "rapidocr:server": ".venv-rapidocr/bin/python scripts/rapidocr_server.py --host 127.0.0.1 --port 8765"
   },
   "dependencies": {
