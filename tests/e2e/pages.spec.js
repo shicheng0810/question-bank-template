@@ -4,7 +4,7 @@ import { expect, test } from '@playwright/test';
 // 播放器功能测试默认跳过新手教程（教程本身有专门用例）
 async function dismissTutorial(page) {
   await page.addInitScript(() => {
-    localStorage.setItem('qb_tutorial_done_v1', '1');
+    localStorage.setItem('qb_tutorial_done_v2', '1');
   });
 }
 
@@ -54,7 +54,8 @@ test('? button reopens the tutorial on demand', async ({ page }) => {
 
   await page.getByTestId('tutorial-help-btn').click();
   await expect(page.getByTestId('qb-tutorial')).toBeVisible();
-  await expect(page.getByTestId('qb-tutorial')).toContainText('Welcome');
+  // 第一条现在是重点突出的「反馈/报错」step（v2）
+  await expect(page.getByTestId('qb-tutorial')).toContainText('Found an error');
 
   await page.getByTestId('tutorial-skip-btn').click();
   await expect(page.getByTestId('qb-tutorial')).toBeHidden();
@@ -140,10 +141,13 @@ test('first visit shows the English tutorial; Skip dismisses it permanently', as
 
   const tutorial = page.getByTestId('qb-tutorial');
   await expect(tutorial).toBeVisible();
-  await expect(tutorial).toContainText('Welcome');
+  // v2：第一条是重点突出的「反馈/报错」，第二条才是 Welcome
+  await expect(tutorial).toContainText('Found an error');
   await expect(page.getByTestId('tutorial-next-btn')).toHaveText('Next');
+  await page.getByTestId('tutorial-next-btn').click();
+  await expect(tutorial).toContainText('Welcome');
 
-  // 第 5 步是专门的 Star 介绍（高亮题卡上的 ☆）
+  // Star 介绍（高亮题卡上的 ☆）：从 Welcome 再点 4 次 Next 到达
   for (let i = 0; i < 4; i++) await page.getByTestId('tutorial-next-btn').click();
   await expect(tutorial).toContainText('Star questions');
   await expect(tutorial).toContainText('Star Only');
