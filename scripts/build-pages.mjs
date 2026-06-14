@@ -24,6 +24,14 @@ const ROOT = process.cwd();
 const OUT = path.resolve(ROOT, process.env.PAGES_OUT || 'docs');
 const MARKER = '__QUESTION_BANK_JSON__';
 const NS_MARKER = '__BANK_STORAGE_NS__';
+const FB_MARKER = '__FEEDBACK_CONFIG_JSON__';
+// 反馈配置（构建时由环境变量注入；未设则 endpoint 为空 → 前端降级为 mailto/剪贴板，按钮不失效）
+const FEEDBACK_CONFIG = {
+  endpoint: process.env.FEEDBACK_ENDPOINT || '',          // 例如 https://question-bank-78u.pages.dev/api/feedback
+  email: process.env.FEEDBACK_EMAIL || '',                // mailto 降级收件人
+  turnstile_site_key: process.env.TURNSTILE_SITE_KEY || '', // 选填：配了才显示验证码
+  app_version: process.env.GIT_SHA || process.env.APP_VERSION || 'site',
+};
 
 const template = readFileSync(path.join(ROOT, 'src/templates/question-bank-template.html'), 'utf8');
 if (!template.includes(MARKER)) {
@@ -46,7 +54,8 @@ function playerHtml(payload, bankId) {
   // <script> 内联转义的唯一权威实现在 testable-core（不再维护镜像拷贝）
   return template
     .replace(MARKER, safeJSONStringForScript(JSON.stringify(payload)))
-    .replace(NS_MARKER, ns);
+    .replace(NS_MARKER, ns)
+    .replace(FB_MARKER, safeJSONStringForScript(JSON.stringify(FEEDBACK_CONFIG)));
 }
 
 // BANKS_MANIFEST 可注入替代清单（e2e 用测试清单，与作者本地的上/下架状态解耦）

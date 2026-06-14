@@ -13,6 +13,7 @@ function safeJSONStringForScript(value) {
 
 const LEGACY_MARKER = '__QUESTION_BANK_JSON__';
 const NS_MARKER = '__BANK_STORAGE_NS__';
+const FB_MARKER = '__FEEDBACK_CONFIG_JSON__';
 
 function assertTemplateMarker(template, marker) {
   if (!template.includes(marker)) {
@@ -29,7 +30,15 @@ export async function buildLegacyQuestionBankHtml(questions, options = {}) {
   // 没有 bankId 时回退共享的 "amt"（与历史导出兼容；注意 slugifyBankId 对空串有默认值，须先判空）。
   const rawBankId = String(options.bankId || '').trim();
   const ns = rawBankId ? (slugifyBankId(rawBankId) || 'amt') : 'amt';
+  // 离线单文件无后端：endpoint 恒空 → 反馈走 mailto（有 feedbackEmail 时）/剪贴板降级
+  const feedbackConfig = {
+    endpoint: '',
+    email: String(options.feedbackEmail || '').trim(),
+    turnstile_site_key: '',
+    app_version: String(options.appVersion || 'export'),
+  };
   return legacyTemplate
     .replace(LEGACY_MARKER, safeJSONStringForScript(payload))
-    .replace(NS_MARKER, ns);
+    .replace(NS_MARKER, ns)
+    .replace(FB_MARKER, safeJSONStringForScript(JSON.stringify(feedbackConfig)));
 }

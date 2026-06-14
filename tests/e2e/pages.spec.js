@@ -246,6 +246,31 @@ test('bulk-clear buttons empty the wrong list and star list', async ({ page }) =
   }
 });
 
+test('feedback: per-question report + general suggestion modals wire up and capture context', async ({ page }) => {
+  await dismissTutorial(page);
+  await page.goto('/player.html?bank=amt205');
+  await expect(page.locator('.question-card').first()).toBeVisible(); // 等题库加载、#quizApp 显示
+
+  // 顶栏「💬 反馈」打开通用建议弹窗
+  await page.getByTestId('suggest-btn').click();
+  await expect(page.getByTestId('qb-suggest')).toBeVisible();
+  // 空内容提交 → 校验拦下（按钮不死）
+  await page.locator('#qb-suggest-send').click();
+  await expect(page.locator('#qb-suggest-status')).toHaveText(/.+/);
+  await page.locator('#qb-suggest [aria-label="Close"]').click();
+  await expect(page.getByTestId('qb-suggest')).toBeHidden();
+
+  // 题卡「⚐ 报错」打开报错弹窗，自动带上下文（题号/来源）
+  const firstCard = page.locator('.question-card').nth(0);
+  await firstCard.locator('.qb-report-btn').click();
+  const report = page.getByTestId('qb-report');
+  await expect(report).toBeVisible();
+  await expect(page.locator('#qb-report-ctx')).toContainText('#1');
+  // 不选类型直接提交 → 提示选类型
+  await page.locator('#qb-report-send').click();
+  await expect(page.locator('#qb-report-status')).toHaveText(/.+/);
+});
+
 test('format guide documents the JSON schema bilingually', async ({ page }) => {
   await page.goto('/format.html');
   await expect(page.locator('h1')).toContainText('JSON Format');
