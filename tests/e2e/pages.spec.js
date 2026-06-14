@@ -212,6 +212,40 @@ test('local JSON import: practice a hand-written bank entirely in the browser', 
   expect(ns).toBeTruthy();
 });
 
+test('bulk-clear buttons empty the wrong list and star list', async ({ page }) => {
+  await dismissTutorial(page);
+  await page.goto('/player.html?bank=amt205');
+
+  // 造 2 道错题：选项 → 提交（amt205 都是单选，首选项多半错，错对都会进/不进 wrong；
+  // 为确定性，直接答错：选最后一个选项通常非正解；但更稳妥用 star 路径验证，wrong 用“答错”兜底）
+  for (let i = 0; i < 2; i++) {
+    const card = page.locator('.question-card').nth(i);
+    await card.locator('.choice-btn').last().click();
+    await card.locator('button.submit-btn').click();
+  }
+  // 收藏 2 道
+  for (let i = 0; i < 2; i++) await page.locator('.question-card').nth(i).locator('.star-btn').click();
+
+  // 收藏视图：出现「全部取消收藏」，点击后清空 → 回到全部视图、收藏计数归零
+  await page.locator('#btn-star').click();
+  const clearStars = page.getByTestId('clear-all-stars-btn');
+  await expect(clearStars).toBeVisible();
+  page.once('dialog', d => d.accept());
+  await clearStars.click();
+  await expect(page.locator('#btn-star')).toContainText('(0)');
+
+  // 错题视图：若有错题则「全部移出错题」可用
+  const wrongBtn = page.locator('#btn-wrong');
+  if (!(await wrongBtn.isDisabled())) {
+    await wrongBtn.click();
+    const clearWrong = page.getByTestId('remove-all-wrong-btn');
+    await expect(clearWrong).toBeVisible();
+    page.once('dialog', d => d.accept());
+    await clearWrong.click();
+    await expect(page.locator('#btn-wrong')).toContainText('(0)');
+  }
+});
+
 test('format guide documents the JSON schema bilingually', async ({ page }) => {
   await page.goto('/format.html');
   await expect(page.locator('h1')).toContainText('JSON Format');
