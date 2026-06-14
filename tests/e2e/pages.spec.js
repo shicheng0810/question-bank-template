@@ -76,9 +76,13 @@ test('bank player renders every question flat; Random 150 hidden when scope <= 1
 
   // 第一题：选第一个选项 → 提交 → 出判定（默认英文 UI）
   const firstCard = cards.nth(0);
+  // 提交前「Show Correct Answers」应隐藏（与 Redo 一致）
+  await expect(firstCard.locator('[id^="keysbtn-"]')).toBeHidden();
   await firstCard.locator('.choice-btn').first().click();
   await firstCard.locator('button.submit-btn').click();
   await expect(firstCard.locator('button.submit-btn')).toHaveText('Submitted');
+  // 提交后「Show Correct Answers」出现
+  await expect(firstCard.locator('[id^="keysbtn-"]')).toBeVisible();
 
   await expect(page.locator('#btn-wrong')).toBeVisible();
   await expect(page.locator('#btn-star')).toBeVisible();

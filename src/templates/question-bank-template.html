@@ -46,6 +46,9 @@
     }
     h1{font-size:1.4rem; font-weight:750; letter-spacing:-.01em; margin:0 0 10px}
     #quizApp[hidden], #unlock-panel[hidden]{display:none}
+    /* .btn 用了 display:inline-flex（作者样式），会盖过浏览器默认的 [hidden]{display:none}，
+       导致 Random150/Back150/返回目录 等靠 hidden 属性切换的按钮隐藏失效。全局兜底： */
+    [hidden]{display:none !important}
 
     .app-header{display:flex; justify-content:space-between; align-items:center; gap:14px; flex-wrap:wrap;
       background:var(--card); border:1px solid var(--border); border-radius:var(--radius); padding:12px 16px; box-shadow:var(--shadow-sm); margin-bottom:16px}
@@ -1016,7 +1019,7 @@
         const st = ensureState(q);
 
         const showKeyBtn = !isEssay(q)
-          ? `<button class="btn" id="keysbtn-${q.id}" onclick="toggleKeys('${q.id}')" ${st.submitted ? "" : "disabled"}>
+          ? `<button class="btn" id="keysbtn-${q.id}" onclick="toggleKeys('${q.id}')" style="display:${st.submitted ? 'block' : 'none'}">
               ${st.showKeys ? T('hide_keys') : T('show_keys')}
             </button>`
           : ``;
@@ -1263,7 +1266,7 @@
       }
       const kb = document.getElementById(`keysbtn-${qId}`);
       if (kb) {
-        kb.disabled = !st.submitted;
+        kb.style.display = st.submitted ? 'block' : 'none';
         kb.textContent = st.showKeys ? T('hide_keys') : T('show_keys');
       }
       updateProgress();
