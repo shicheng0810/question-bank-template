@@ -364,11 +364,12 @@
     }
 
     /* ------------------ 反馈配置（构建时注入；未注入则降级为 mailto/剪贴板，按钮永不失效） ------------------ */
-    const RAW_FEEDBACK_CONFIG = "{"endpoint":"","email":"","turnstile_site_key":"","app_version":"site"}";
+    // 裸 marker（与题库 payload 同模式）：构建时被替换成 JS 对象字面量；所有消费路径都会替换。
+    const RAW_FEEDBACK_CONFIG = {"endpoint":"https://question-bank-78u.pages.dev/api/feedback","email":"","turnstile_site_key":"","app_version":"site"};
     let FEEDBACK_CONFIG = { endpoint: "", email: "", turnstile_site_key: "", app_version: "dev" };
     try {
-      if (RAW_FEEDBACK_CONFIG && RAW_FEEDBACK_CONFIG.indexOf("__") !== 0) {
-        FEEDBACK_CONFIG = Object.assign(FEEDBACK_CONFIG, JSON.parse(RAW_FEEDBACK_CONFIG));
+      if (RAW_FEEDBACK_CONFIG && typeof RAW_FEEDBACK_CONFIG === "object") {
+        FEEDBACK_CONFIG = Object.assign(FEEDBACK_CONFIG, RAW_FEEDBACK_CONFIG);
       }
     } catch (_e) {}
 

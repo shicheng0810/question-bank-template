@@ -27,8 +27,10 @@ const NS_MARKER = '__BANK_STORAGE_NS__';
 const FB_MARKER = '__FEEDBACK_CONFIG_JSON__';
 // 反馈配置（构建时由环境变量注入；未设则 endpoint 为空 → 前端降级为 mailto/剪贴板，按钮不失效）
 const FEEDBACK_CONFIG = {
-  endpoint: process.env.FEEDBACK_ENDPOINT || '',          // 例如 https://question-bank-78u.pages.dev/api/feedback
-  email: process.env.FEEDBACK_EMAIL || '',                // mailto 降级收件人
+  // 默认指向 CF Pages 的反馈 Function（GitHub 镜像也跨域打到这里，CORS 已放行）。
+  // 反馈 → 站主 Telegram（密钥存在 CF secret）。可用 env 覆盖。
+  endpoint: process.env.FEEDBACK_ENDPOINT || 'https://question-bank-78u.pages.dev/api/feedback',
+  email: process.env.FEEDBACK_EMAIL || '',                // mailto 降级收件人（选填）
   turnstile_site_key: process.env.TURNSTILE_SITE_KEY || '', // 选填：配了才显示验证码
   app_version: process.env.GIT_SHA || process.env.APP_VERSION || 'site',
 };
