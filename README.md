@@ -1,4 +1,7 @@
-# Moved / 已迁移
+# question-bank-template — 预览 / Staging
 
-The AMT practice site now lives at **https://shicheng0810.github.io/question-bank/**
-（练习站已迁移到上面的新地址；本仓库仅保留自动跳转。Old deep links redirect automatically.）
+GitHub Pages of this repo is a **staging preview** of the practice site:
+**https://shicheng0810.github.io/question-bank-template/**
+
+Production / 正式站: **https://shicheng0810.github.io/question-bank/**
+Source code / 源码: the [`source`](https://github.com/shicheng0810/question-bank-template/tree/source) branch.
