@@ -2168,7 +2168,7 @@
       }
     }
     function drawNode(n, alphaScale){
-      var a=(0.45+0.3*Math.sin(n.tw))*alphaScale;
+      var a=(0.26+0.16*Math.sin(n.tw))*alphaScale;
       ctx.beginPath(); ctx.arc(n.x,n.y,n.r,0,Math.PI*2);
       ctx.fillStyle='rgba('+rgb+','+a.toFixed(3)+')'; ctx.fill();
     }
@@ -2179,8 +2179,8 @@
         for(var j=i+1;j<nodeCount;j++){
           var b=nodes[j], dx=a.x-b.x, dy=a.y-b.y, d2=dx*dx+dy*dy;
           if(d2<LINK_DIST_SQ){
-            var t=1-d2/LINK_DIST_SQ, alpha=t*t*0.22*globalScale;
-            if(mouseActive){ var mdx=a.x-mouseX, mdy=a.y-mouseY; if(mdx*mdx+mdy*mdy<MOUSE_RADIUS_SQ) alpha+=0.10*t; }
+            var t=1-d2/LINK_DIST_SQ, alpha=t*t*0.12*globalScale;
+            if(mouseActive){ var mdx=a.x-mouseX, mdy=a.y-mouseY; if(mdx*mdx+mdy*mdy<MOUSE_RADIUS_SQ) alpha+=0.05*t; }
             if(alpha<=0.004) continue;
             ctx.strokeStyle='rgba('+rgb+','+alpha.toFixed(3)+')';
             ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
