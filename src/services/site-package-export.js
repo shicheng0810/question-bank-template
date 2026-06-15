@@ -14,6 +14,7 @@ function safeJSONStringForScript(value) {
 const LEGACY_MARKER = '__QUESTION_BANK_JSON__';
 const NS_MARKER = '__BANK_STORAGE_NS__';
 const FB_MARKER = '__FEEDBACK_CONFIG_JSON__';
+const UI_MARKER = '__UI_FEATURES_JSON__';
 
 function assertTemplateMarker(template, marker) {
   if (!template.includes(marker)) {
@@ -23,6 +24,7 @@ function assertTemplateMarker(template, marker) {
 
 export async function buildLegacyQuestionBankHtml(questions, options = {}) {
   assertTemplateMarker(legacyTemplate, LEGACY_MARKER);
+  assertTemplateMarker(legacyTemplate, UI_MARKER);
   const payload = options.mode === 'protected'
     ? { mode: 'protected', envelope: JSON.parse(await encryptQuestionBankPayload(questions, options.password || '')) }
     : (Array.isArray(questions) ? questions : []);
@@ -37,8 +39,17 @@ export async function buildLegacyQuestionBankHtml(questions, options = {}) {
     turnstile_site_key: '',
     app_version: String(options.appVersion || 'export'),
   };
+  // 离线单文件的 UI 取舍：去掉反馈/报错入口 + 新手教程、界面锁英文；Button Guide 保留。
+  // （可被 options.uiFeatures 覆盖，便于将来需要时放开。）
+  const uiFeatures = Object.assign(
+    { feedback: false, tutorial: false, languages: ['en'] },
+    (options.uiFeatures && typeof options.uiFeatures === 'object') ? options.uiFeatures : {},
+  );
+  // 注意：本文件的 safeJSONStringForScript 入参是“对象”（内部已 JSON.stringify）；
+  // 故这里直接传对象，不要再 JSON.stringify（早期 FB 行多套了一层，会注入成字符串而失效——已一并修正）。
   return legacyTemplate
     .replace(LEGACY_MARKER, safeJSONStringForScript(payload))
     .replace(NS_MARKER, ns)
-    .replace(FB_MARKER, safeJSONStringForScript(JSON.stringify(feedbackConfig)));
+    .replace(FB_MARKER, safeJSONStringForScript(feedbackConfig))
+    .replace(UI_MARKER, safeJSONStringForScript(uiFeatures));
 }

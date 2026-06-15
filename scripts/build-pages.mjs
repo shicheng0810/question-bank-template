@@ -25,6 +25,10 @@ const OUT = path.resolve(ROOT, process.env.PAGES_OUT || 'docs');
 const MARKER = '__QUESTION_BANK_JSON__';
 const NS_MARKER = '__BANK_STORAGE_NS__';
 const FB_MARKER = '__FEEDBACK_CONFIG_JSON__';
+const UI_MARKER = '__UI_FEATURES_JSON__';
+// 站点（player.html / local.html）：所有功能开启（反馈/报错、新手教程、三语）。
+// 离线单文件导出走另一条路径（site-package-export.js），那里会关掉这些。
+const UI_FEATURES = { feedback: true, tutorial: true, languages: ['en', 'zh', 'es'] };
 // 反馈配置（构建时由环境变量注入；未设则 endpoint 为空 → 前端降级为 mailto/剪贴板，按钮不失效）
 const FEEDBACK_CONFIG = {
   // 默认指向 CF Pages 的反馈 Function（GitHub 镜像也跨域打到这里，CORS 已放行）。
@@ -36,8 +40,8 @@ const FEEDBACK_CONFIG = {
 };
 
 const template = readFileSync(path.join(ROOT, 'src/templates/question-bank-template.html'), 'utf8');
-if (!template.includes(MARKER)) {
-  throw new Error('题库模板缺少 __QUESTION_BANK_JSON__ marker');
+for (const m of [MARKER, NS_MARKER, FB_MARKER, UI_MARKER]) {
+  if (!template.includes(m)) throw new Error(`题库模板缺少 marker：${m}`);
 }
 
 // 从模板里抽出星座粒子 IIFE，复用到目录页 —— 单一来源，两处永不漂移
@@ -57,7 +61,8 @@ function playerHtml(payload, bankId) {
   return template
     .replace(MARKER, safeJSONStringForScript(JSON.stringify(payload)))
     .replace(NS_MARKER, ns)
-    .replace(FB_MARKER, safeJSONStringForScript(JSON.stringify(FEEDBACK_CONFIG)));
+    .replace(FB_MARKER, safeJSONStringForScript(JSON.stringify(FEEDBACK_CONFIG)))
+    .replace(UI_MARKER, safeJSONStringForScript(JSON.stringify(UI_FEATURES)));
 }
 
 // BANKS_MANIFEST 可注入替代清单（e2e 用测试清单，与作者本地的上/下架状态解耦）
