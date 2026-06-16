@@ -227,7 +227,7 @@ HARD RULES (the importer validates every record and silently drops malformed one
 3. Every object MUST have both:
    - "id": a unique, non-empty string ("q1", "q2", ... unique within the file).
    - "question": the stem as plain text (use \\n for line breaks).
-4. Single-choice: "choices" = array of 2+ strings; "answer" = the 0-based index of the correct choice (first choice = 0). It must be an integer in range — never the answer text, never 1-based.
+4. Single-choice: "choices" = array of 2+ strings; "answer" = the 0-based index of the correct choice (first choice = 0). A single integer like 2 — NOT an array like [2], not the answer text, not 1-based. Do not add a "type" field to choice questions (only fill-in uses "type":"fill").
 5. Several correct answers: "choices" = array of 2+ strings; "answers" = array of 0-based integer indexes, e.g. [0, 2]. Use the PLURAL key "answers" (not "answer").
 6. Fill-in-the-blank: "type": "fill"; put ____ (4+ underscores) in "question" where each blank goes; "blanks" = an array with one entry per blank, each entry an array of every accepted answer — e.g. [["8","eight"]] (one blank, two spellings) or [["a"],["b"]] (two blanks).
 7. Optional: "source" (string, where it came from), "image" (an image URL or a data:image/...;base64 string, or an array of them).
@@ -520,6 +520,17 @@ ${cards}
         var bad = false;
         // 缺 id 自动补一个（本地练习够用；id 仅用于错题/收藏的存储 key）——AI 产出最常见的“缺字段”
         if (!String(rec.id == null ? "" : rec.id).trim()) rec.id = "auto-" + (idx + 1);
+        // —— 归一化便宜 AI 的常见偏差（实测 Gemini 输出）——
+        if (rec.id != null && typeof rec.id !== "string") rec.id = String(rec.id); // 数字 id → 字符串
+        // 单选答案被包成数组：answer:[2] → answer:2；answer:[0,2] → answers:[0,2]
+        if (Array.isArray(rec.answer)){
+          if (rec.answer.length === 1) rec.answer = rec.answer[0];
+          else { rec.answers = rec.answer; delete rec.answer; }
+        }
+        // 索引写成字符串数字："2" → 2（answer 与 answers 都兜）
+        var toIdx = function(v){ return (typeof v === "string" && /^[0-9]+$/.test(v.trim())) ? parseInt(v, 10) : v; };
+        if (rec.answer !== undefined && rec.answer !== null) rec.answer = toIdx(rec.answer);
+        if (Array.isArray(rec.answers)) rec.answers = rec.answers.map(toIdx);
         var hasImg = !!(rec.image && (typeof rec.image === "string" || (Array.isArray(rec.image) && rec.image.length)));
         if (!String(rec.question == null ? "" : rec.question).trim() && !hasImg) bad = true;
         var isFill = rec.type === "fill" || Array.isArray(rec.blanks);

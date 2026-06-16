@@ -234,6 +234,23 @@ test('local import tolerates AI-style messiness: code fences + {questions:[…]}
   await expect(page.locator('.question-card')).toHaveCount(3);
 });
 
+test('local import normalizes cheap-AI output: numeric id, answer:[n] array, no category', async ({ page }) => {
+  await dismissTutorial(page);
+  await page.goto('/');
+
+  // Gemini 实测产出的形态：数字 id、单选答案被包成 answer:[1]、type:"multiple_choice"、无 source/分类前缀
+  await page.getByTestId('import-file').setInputFiles('tests/fixtures/gemini-style-bank.json');
+  await expect(page.getByTestId('import-msg')).toContainText('3 questions');
+  await expect(page.getByTestId('import-msg')).not.toContainText('invalid');
+
+  const card = page.getByTestId('local-card').filter({ hasText: 'gemini-style-bank' });
+  await card.getByTestId('local-practice-link').click();
+  // 无分类前缀的题目以前会被筛选器全部隐藏（"No questions match"）——现在必须全部显示
+  await expect(page.locator('.question-card')).toHaveCount(3);
+  // 筛选面板无分类时隐藏
+  await expect(page.locator('details.filter-panel')).toBeHidden();
+});
+
 test('bulk-clear buttons empty the wrong list and star list', async ({ page }) => {
   await dismissTutorial(page);
   await page.goto('/player.html?bank=amt205');

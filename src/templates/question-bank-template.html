@@ -1118,6 +1118,9 @@
       const cats=deriveCategoriesFromQuestions();
       const container=document.getElementById("filter-container");
       container.innerHTML=cats.map(c=>`<label class="filter-label"><input type="checkbox" class="bank-filter" value="${c.id}" checked>${c.label}</label>`).join("");
+      // 没有任何分类（AI 导入/手写库，题目无 bank 前缀）时隐藏整个筛选面板——否则是个空壳。
+      const panel=document.querySelector('details.filter-panel');
+      if(panel) panel.hidden = cats.length===0;
     }
     function toggleFilters(check){document.querySelectorAll(".bank-filter").forEach(cb=>cb.checked=check)}
     function getSelectedPrefixes(){return Array.from(document.querySelectorAll(".bank-filter:checked")).map(cb=>cb.value)}
@@ -1858,7 +1861,13 @@
       activeRandom150Questions=null;
       activeRandom150SourcePool=null;
       const prefixes=getSelectedPrefixes();
-      const subset=QUESTION_BANK.filter(q=>prefixes.some(p=> (Array.isArray(q.banks)?q.banks.includes(p):getBanks(q).includes(p)) ));
+      const subset=QUESTION_BANK.filter(q=>{
+        const banks=(Array.isArray(q.banks)&&q.banks.length)?q.banks:getBanks(q);
+        // 无任何分类前缀的题目（如 AI 导入、id 不含“-”、手写库）永远显示——
+        // 否则它们不属于任何筛选项会被全部隐藏（"No questions match the current filters"）。
+        if(!banks.length) return true;
+        return prefixes.some(p=>banks.includes(p));
+      });
       shuffle(subset);
       baseQuestions = subset.slice();
       render(baseQuestions);

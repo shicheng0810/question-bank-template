@@ -1,0 +1,5 @@
+[
+  {"id": 1, "question": "What is 2 + 2?", "type": "multiple_choice", "choices": ["3", "4", "5"], "answer": [1]},
+  {"id": 2, "question": "Capital of France?", "type": "multiple_choice", "choices": ["London", "Paris", "Berlin"], "answer": [1]},
+  {"id": 3, "question": "Pick the primary colors. (multiple answers)", "choices": ["Red", "Green", "Blue", "Orange"], "answer": [0, 2]}
+]
