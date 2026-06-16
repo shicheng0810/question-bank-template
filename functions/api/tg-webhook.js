@@ -192,11 +192,6 @@ export async function onRequestPost(context) {
   return new Response('ok');
 }
 
-export function onRequestGet({ env }) {
-  const keys = Object.keys(env || {});
-  return new Response(JSON.stringify({
-    up: true, kv: !!env.EDITS, gh: !!env.GITHUB_TOKEN,
-    wh: !!env.TELEGRAM_WEBHOOK_SECRET, tg: !!env.TELEGRAM_BOT_TOKEN,
-    kvish: keys.filter((k) => /edit|kv|store|namespace/i.test(k)), // 只暴露 KV 相关绑定名，排查命名
-  }), { headers: { 'content-type': 'application/json' } });
+export function onRequestGet() {
+  return new Response('tg-webhook up', { headers: { 'content-type': 'text/plain; charset=utf-8' } });
 }

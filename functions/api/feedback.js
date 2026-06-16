@@ -122,7 +122,6 @@ export async function onRequestPost(context) {
   // 题目修正：把"修正内容"暂存进 KV，并在消息上挂 [✅ 批准并开 PR] 按钮（短 id 放 callback_data，
   // 站主一点 → /api/tg-webhook 凭 id 取回 → 开 PR）。需 KV(env.EDITS)+GitHub token；缺则只发消息不挂按钮。
   let reply_markup;
-  let editId = null;
   if (kind === 'question_edit' && env.EDITS && env.GITHUB_TOKEN
       && body.corrected && typeof body.corrected === 'object' && body.corrected.question) {
     const id = ((typeof crypto !== 'undefined' && crypto.randomUUID)
@@ -140,7 +139,6 @@ export async function onRequestPost(context) {
     try {
       await env.EDITS.put('edit:' + id, JSON.stringify(pending), { expirationTtl: 14 * 24 * 3600 });
       reply_markup = { inline_keyboard: [[{ text: '✅ 批准并开 PR', callback_data: 'ap:' + id }]] };
-      editId = id;
     } catch (_e) { /* KV 写失败：消息照发、无按钮 */ }
   }
 
@@ -152,5 +150,5 @@ export async function onRequestPost(context) {
   }).catch(() => null);
 
   if (!tg || !tg.ok) return json({ ok: false, error: 'delivery_failed' }, 502, origin);
-  return json(editId ? { ok: true, edit_id: editId } : { ok: true }, 200, origin);
+  return json({ ok: true }, 200, origin);
 }
