@@ -7,6 +7,7 @@
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
     "build:pages": "node scripts/build-pages.mjs",
+    "extract:mhtml": "node scripts/extract-mhtml.mjs",
     "deploy:cloudflare": "npm run build:pages && npx wrangler pages deploy docs --project-name=question-bank",
     "deploy:github": "npm run build:pages && node scripts/deploy-gh-mirror.mjs",
     "deploy:cf": "npm run build:pages && npx wrangler pages deploy docs --project-name=question-bank && node scripts/deploy-gh-mirror.mjs",
