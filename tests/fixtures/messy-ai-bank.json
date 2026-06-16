@@ -1,0 +1,9 @@
+```json
+{
+  "questions": [
+    {"question": "What is 2 + 2?", "choices": ["3", "4", "5"], "answer": 1},
+    {"question": "Select the vowels. (multiple answers)", "choices": ["a", "b", "c", "e"], "answers": [0, 3]},
+    {"type": "fill", "question": "The sky is ____.", "blanks": [["blue"]]}
+  ]
+}
+```

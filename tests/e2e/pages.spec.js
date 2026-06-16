@@ -216,6 +216,24 @@ test('local JSON import: practice a hand-written bank entirely in the browser', 
   expect(ns).toBeTruthy();
 });
 
+test('local import tolerates AI-style messiness: code fences + {questions:[…]} wrapper + missing ids', async ({ page }) => {
+  await dismissTutorial(page);
+  await page.goto('/');
+
+  // 这份 fixture 三种“AI 常见毛病”齐全：三反引号围栏、外层对象包裹、每题都缺 id
+  await page.getByTestId('import-file').setInputFiles('tests/fixtures/messy-ai-bank.json');
+  await expect(page.getByTestId('import-msg')).toContainText('3 questions');
+  await expect(page.getByTestId('import-msg')).not.toContainText('invalid');
+
+  const card = page.getByTestId('local-card');
+  await expect(card).toHaveCount(1);
+  await expect(card).toContainText('messy-ai-bank');
+
+  // 自动补的 id 让三题都通过校验、能真正进入练习
+  await card.getByTestId('local-practice-link').click();
+  await expect(page.locator('.question-card')).toHaveCount(3);
+});
+
 test('bulk-clear buttons empty the wrong list and star list', async ({ page }) => {
   await dismissTutorial(page);
   await page.goto('/player.html?bank=amt205');
@@ -278,8 +296,12 @@ test('feedback: per-question report + general suggestion modals wire up and capt
 test('format guide documents the JSON schema bilingually', async ({ page }) => {
   await page.goto('/format.html');
   await expect(page.locator('h1')).toContainText('JSON Format');
-  await expect(page.locator('pre')).toContainText('"answers": [0, 2]');
+  // 完整示例是最后一个 <pre>（第一个现在是 AI 提示词）
+  await expect(page.locator('pre').last()).toContainText('"answers": [0, 2]');
   await expect(page.locator('body')).toContainText('忽略大小写');
+  // AI 提示词区块 + 复制按钮（让其他 AI 能直接照着产出可导入的 JSON）
+  await expect(page.locator('#ai-prompt')).toContainText('Top level is a bare array');
+  await expect(page.getByRole('button', { name: /Copy prompt/ })).toBeVisible();
 });
 
 test('per-bank storage namespaces keep banks isolated on the same origin', async ({ page }) => {

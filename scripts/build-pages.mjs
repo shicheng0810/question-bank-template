@@ -213,6 +213,36 @@ function formatHtml() {
     "answer": 1
   }
 ]`;
+  // AI / 自动化工具「可直接粘贴」的提示词——嵌进页面（带复制按钮）。
+  // 注意：本字符串在 formatHtml 的模板字符串里，禁止出现裸反引号或 ${ }。提到代码围栏一律用文字描述。
+  const aiPrompt = `You turn exam / quiz material into a "Question Bank" JSON file that an automated importer loads. Follow these rules exactly — the importer validates every record and silently drops malformed ones.
+
+INPUT: study material that contains questions — a saved web page (.mhtml / .html, often quoted-printable encoded), screenshots, or pasted text. Decode it if needed and read the real question text, the choices, and the marked correct answer.
+
+OUTPUT: exactly ONE JSON array and nothing else.
+
+HARD RULES
+1. Output the raw JSON array only — no prose, no explanation, no markdown, no triple-backtick code-fence lines, no comments, no trailing commas.
+2. Top level is a bare array: [ {...}, {...} ]. Never wrap it in an object such as {"questions": [...]}.
+3. Every object MUST have both:
+   - "id": a unique, non-empty string ("q1", "q2", ... unique within the file).
+   - "question": the stem as plain text (use \\n for line breaks).
+4. Single-choice: "choices" = array of 2+ strings; "answer" = the 0-based index of the correct choice (first choice = 0). It must be an integer in range — never the answer text, never 1-based.
+5. Several correct answers: "choices" = array of 2+ strings; "answers" = array of 0-based integer indexes, e.g. [0, 2]. Use the PLURAL key "answers" (not "answer").
+6. Fill-in-the-blank: "type": "fill"; put ____ (4+ underscores) in "question" where each blank goes; "blanks" = an array with one entry per blank, each entry an array of every accepted answer — e.g. [["8","eight"]] (one blank, two spellings) or [["a"],["b"]] (two blanks).
+7. Optional: "source" (string, where it came from), "image" (an image URL or a data:image/...;base64 string, or an array of them).
+8. Include EVERY question. Use only the answer the material marks correct. If none is marked, still include the question, choose the best-supported option, and add "source": "answer unverified". Never drop a question.
+9. Straight ASCII double quotes only. The output must be valid UTF-8 JSON that JSON.parse accepts.
+
+REQUIRED SHAPE (match this exactly)
+[
+  {"id":"q1","question":"Which fabric is approved for aircraft covering?","choices":["Polyester","Cotton bedsheet","Nylon tarp"],"answer":0,"source":"Chapter 3"},
+  {"id":"q2","question":"Select ALL tools required. (multiple answers)","choices":["Punch tester","Hammer","Maule tester"],"answers":[0,2]},
+  {"id":"q3","type":"fill","question":"A hole smaller than ____ inches may be patched.","blanks":[["8","eight"]]}
+]
+
+Before finishing, silently check: top level is [ ]; every object has "id" and "question"; each single-choice "answer" is a 0-based integer in range; multiple answers use "answers"; fill uses "type":"fill" plus "blanks"; no code-fence lines; no trailing commas. Then output the JSON array only.`;
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -235,12 +265,25 @@ function formatHtml() {
     .muted{color:var(--muted)}
     .back{display:inline-block;margin-bottom:10px;color:var(--brand);font-weight:600;text-decoration:none}
     .pill{display:inline-block;font-weight:600;font-size:12px;background:#eef2ff;color:#3730a3;border:1px solid #e0e7ff;padding:2px 10px;border-radius:999px}
+    .callout{background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:4px 16px 14px;margin:18px 0}
+    .callout h2{border:none;margin-top:12px}
+    .copybtn{background:var(--brand);color:#fff;border:none;border-radius:6px;padding:7px 13px;font-weight:600;cursor:pointer;font-size:13px}
+    .copybtn:hover{background:#1d4ed8}
+    kbd{background:#fff;border:1px solid var(--border);border-radius:4px;padding:0 5px;font-size:12px}
   </style>
 </head>
 <body>
   <a class="back" href="./">← Back to catalog / 返回目录</a>
   <h1>Question Bank JSON Format <span class="muted">/ 题库 JSON 格式说明</span></h1>
   <p class="muted">Write your own bank as a <code>.json</code> file (UTF-8), then use “Import your own bank” on the catalog page to practice it — nothing is uploaded; it stays in your browser.</p>
+
+  <div class="callout" id="ai">
+    <h2>🤖 Using an AI to extract questions? <span class="muted">/ 用 AI 提取题目？</span></h2>
+    <p style="margin:0 0 10px">Paste the prompt below into any AI, then attach your material (a saved <kbd>.mhtml</kbd>/<kbd>.html</kbd> page, screenshots, or text). It returns a ready-to-import bank. <span class="muted">/ 把下面这段提示词丢给任意 AI，再附上你的素材（保存的 .mhtml/.html 网页、截图或文字），它就会输出可直接导入的题库。</span></p>
+    <button class="copybtn" type="button" onclick="(function(b){navigator.clipboard.writeText(document.getElementById('ai-prompt').textContent).then(function(){var o=b.getAttribute('data-label');b.textContent='Copied \\u2713';setTimeout(function(){b.textContent=o;},1500);});})(this)" data-label="Copy prompt / 复制提示词">Copy prompt / 复制提示词</button>
+    <pre style="margin-top:10px"><code id="ai-prompt">${esc(aiPrompt)}</code></pre>
+    <p class="muted" style="margin:8px 0 2px">The importer auto-handles a few common AI slips (code fences, an outer <code>{"questions":[…]}</code> wrapper, a missing <code>id</code>) — but the rules below still matter. <span>/ 导入器会自动兜底几种常见小毛病（代码围栏、外层 <code>{"questions":[…]}</code> 包裹、缺 <code>id</code>），但下面的规则仍需遵守。</span></p>
+  </div>
 
   <h2>English</h2>
   <p>A bank is a <strong>JSON array of question objects</strong>. Three question types are supported: single-choice, multiple-answer, and fill-in-the-blank.</p>
@@ -268,6 +311,15 @@ function formatHtml() {
     <li>Files are validated on import; invalid records are skipped with a reason (missing <code>id</code>, fewer than 2 choices, out-of-range <code>answer</code>, fill-in without accepted answers…).</li>
   </ul>
 
+  <h3>If it says “invalid / no valid questions” — why a record is skipped, and the fix</h3>
+  <table>
+    <tr><th>Symptom</th><th>Fix</th></tr>
+    <tr><td>Whole file rejected (“Not valid JSON”)</td><td>It must be valid JSON. Remove markdown <strong>code fences</strong>, comments, and trailing commas; use straight <code>"</code> quotes.</td></tr>
+    <tr><td>“No valid questions found”</td><td>Top level must be a <strong>bare array</strong> <code>[…]</code>. Don’t wrap it as <code>{"questions":[…]}</code>. (The importer tries to unwrap, but a bare array is safest.)</td></tr>
+    <tr><td>Every question skipped</td><td>Usually a missing <code>id</code> or a bad <code>answer</code>. Give each a unique <code>id</code>; make <code>answer</code> a <strong>0-based integer</strong> in range (not the text, not 1-based).</td></tr>
+    <tr><td>One question skipped</td><td>Choice Q needs <code>choices</code> (2+) and a valid <code>answer</code>/<code>answers</code>; fill-in needs <code>blanks</code> with at least one accepted answer; or give it an <code>image</code> if there’s no stem text.</td></tr>
+  </table>
+
   <h2>中文</h2>
   <p>题库就是一个 <strong>JSON 数组</strong>，每个元素是一道题。支持三种题型：单选、多选、填空。</p>
   <ul>
@@ -281,7 +333,7 @@ function formatHtml() {
   </ul>
 
   <h2>Complete example / 完整示例</h2>
-  <pre><code>${example}</code></pre>
+  <pre><code>${esc(example)}</code></pre>
   <p class="muted">Save as e.g. <code>my-bank.json</code> → catalog page → “Import your own bank”. The Extractor's “导出全部合并 JSON” produces exactly this format. / 保存为 <code>.json</code> 后到目录页导入即可；提取器导出的合并 JSON 就是这个格式。</p>
 </body>
 </html>
@@ -454,10 +506,11 @@ ${cards}
     // 与发布脚本同规则的轻量校验（导入侧提示用；详见 format.html）
     function validateBank(list){
       var valid = [], rejected = 0;
-      (Array.isArray(list) ? list : []).forEach(function(rec){
+      (Array.isArray(list) ? list : []).forEach(function(rec, idx){
         if (!rec || typeof rec !== "object" || Array.isArray(rec)) { rejected++; return; }
         var bad = false;
-        if (!String(rec.id == null ? "" : rec.id).trim()) bad = true;
+        // 缺 id 自动补一个（本地练习够用；id 仅用于错题/收藏的存储 key）——AI 产出最常见的“缺字段”
+        if (!String(rec.id == null ? "" : rec.id).trim()) rec.id = "auto-" + (idx + 1);
         var hasImg = !!(rec.image && (typeof rec.image === "string" || (Array.isArray(rec.image) && rec.image.length)));
         if (!String(rec.question == null ? "" : rec.question).trim() && !hasImg) bad = true;
         var isFill = rec.type === "fill" || Array.isArray(rec.blanks);
@@ -508,6 +561,28 @@ ${cards}
       el.textContent = text;
       el.style.color = isError ? "var(--danger-ink)" : "var(--ok-ink)";
     }
+    // AI 产出的 .json 常见杂质：① 用三反引号代码围栏包起来（含 json 语言标注）② 包成对象 {questions:[...]}。这里都兜住。
+    // 注意：本段在 catalogHtml 的模板字符串里，绝不能出现裸反引号 —— 用 fromCharCode 取反引号、纯字符串操作（不用正则）。
+    var FENCE3 = String.fromCharCode(96, 96, 96); // 三个反引号
+    function stripCodeFences(text){
+      var s = String(text == null ? "" : text).trim();
+      if (s.indexOf(FENCE3) !== 0) return s;            // 不是以围栏开头 → 原样
+      s = s.slice(3);                                    // 去掉开头围栏
+      var nl = s.indexOf("\\n");                         // 形如「三反引号+json」的语言标注独占一行 → 去掉
+      if (nl >= 0){ var head = s.slice(0, nl); if (head.indexOf("[") < 0 && head.indexOf("{") < 0) s = s.slice(nl + 1); }
+      var last = s.lastIndexOf(FENCE3);                  // 去掉结尾围栏
+      if (last >= 0) s = s.slice(0, last);
+      return s.trim();
+    }
+    function coerceBankArray(parsed){
+      if (Array.isArray(parsed)) return parsed;
+      if (parsed && typeof parsed === "object"){
+        var keys = ["questions","bank","items","data","records","list","banks"];
+        for (var i = 0; i < keys.length; i++){ if (Array.isArray(parsed[keys[i]])) return parsed[keys[i]]; }
+        for (var k in parsed){ if (Array.isArray(parsed[k])) return parsed[k]; } // 兜底：第一个数组属性
+      }
+      return null;
+    }
     (function bindImport(){
       var input = document.getElementById("import-file");
       if (!input) return;
@@ -518,9 +593,11 @@ ${cards}
         var reader = new FileReader();
         reader.onload = function(){
           var parsed;
-          try{ parsed = JSON.parse(String(reader.result || "")); }
+          try{ parsed = JSON.parse(stripCodeFences(reader.result)); }
           catch(e){ importMessage(T("err_parse"), true); return; }
-          var res = validateBank(parsed);
+          var list = coerceBankArray(parsed);
+          if (!list){ importMessage(T("err_shape"), true); return; }
+          var res = validateBank(list);
           if (!res.valid.length){ importMessage(T("err_shape"), true); return; }
           var title = String(file.name || "bank").replace(/\\.json$/i, "");
           var id = slugLocal(title);
