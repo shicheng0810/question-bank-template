@@ -82,26 +82,20 @@ export async function onRequestPost(context) {
 
   const kind = clip(body.kind, MAX.type) || 'general_feedback';
   const message = clip(body.message, MAX.message);
-  if (message.length < 2 && kind !== 'question_report' && kind !== 'question_edit') return json({ ok: false, error: 'empty' }, 400, origin);
+  if (message.length < 2 && kind !== 'question_edit') return json({ ok: false, error: 'empty' }, 400, origin);
   if (kind === 'question_edit' && !(Array.isArray(body.diff) && body.diff.length) && !clip(body.note, MAX.message)) return json({ ok: false, error: 'empty' }, 400, origin);
 
   const lines = [];
-  if (kind === 'question_report') {
-    lines.push('⚐ <b>题目报错</b>');
-    lines.push(`类型: ${esc(clip(body.report_type, MAX.type))}`);
-    lines.push(`题库: <code>${esc(clip(body.bank_id, MAX.bankId))}</code> · 第 ${esc(String(body.question_index || '?'))} 题`);
-    if (body.question_source) lines.push(`来源: ${esc(clip(body.question_source, MAX.source))}`);
-    if (body.question_stem) lines.push(`题干: ${esc(clip(body.question_stem, MAX.stem))}`);
-    lines.push(`判错: ${body.was_wrong ? '是' : '否'} · 已提交: ${body.submitted ? '是' : '否'}`);
-    if (body.selected_answer !== undefined) lines.push(`所选: ${esc(clip(JSON.stringify(body.selected_answer), 80))}`);
-    if (message) lines.push(`说明: ${esc(message)}`);
-  } else if (kind === 'question_edit') {
+  if (kind === 'question_edit') {
     const fmt = (v) => Array.isArray(v)
       ? v.map((x) => (x && typeof x === 'object') ? JSON.stringify(x) : String(x)).join(' | ')
       : ((v && typeof v === 'object') ? JSON.stringify(v) : String(v == null ? '' : v));
+    // 始终带上题干，站主审批时能直接核对（之前只发 diff，若只改答案就看不到是哪道题）。
+    const stem = (body.original && body.original.question) || (body.corrected && body.corrected.question) || '';
     lines.push('✏️ <b>题目修正建议</b>');
-    lines.push(`题库: <code>${esc(clip(body.bank_id, MAX.bankId))}</code>${body.question_index ? ' · 第 ' + esc(String(body.question_index)) + ' 题' : ''}`);
+    lines.push(`题库: <code>${esc(clip(body.bank_id, MAX.bankId))}</code>`);
     if (body.question_source) lines.push(`来源: ${esc(clip(body.question_source, MAX.source))}`);
+    if (stem) lines.push(`题干: ${esc(clip(stem, MAX.stem))}`);
     const diff = Array.isArray(body.diff) ? body.diff : [];
     for (const d of diff.slice(0, 6)) {
       lines.push(`— <b>${esc(clip(d && d.field, 24))}</b>`);

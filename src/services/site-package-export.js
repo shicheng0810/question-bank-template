@@ -47,9 +47,12 @@ export async function buildLegacyQuestionBankHtml(questions, options = {}) {
   );
   // 注意：本文件的 safeJSONStringForScript 入参是“对象”（内部已 JSON.stringify）；
   // 故这里直接传对象，不要再 JSON.stringify（早期 FB 行多套了一层，会注入成字符串而失效——已一并修正）。
+  // 用函数式替换 (() => value)：单文件把题目数组内联进去，题干里若有 $&、$'、$$ 等会被
+  // String.replace 当成替换模式而损坏内容；函数式替换按字面插入。
+  const lit = (s) => () => s;
   return legacyTemplate
-    .replace(LEGACY_MARKER, safeJSONStringForScript(payload))
-    .replace(NS_MARKER, ns)
-    .replace(FB_MARKER, safeJSONStringForScript(feedbackConfig))
-    .replace(UI_MARKER, safeJSONStringForScript(uiFeatures));
+    .replace(LEGACY_MARKER, lit(safeJSONStringForScript(payload)))
+    .replace(NS_MARKER, lit(ns))
+    .replace(FB_MARKER, lit(safeJSONStringForScript(feedbackConfig)))
+    .replace(UI_MARKER, lit(safeJSONStringForScript(uiFeatures)));
 }

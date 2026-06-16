@@ -1,17 +1,20 @@
 // Cloudflare Pages Function —— Telegram webhook：站主在 Telegram 点 [✅ 批准并开 PR] 的回调处理。
-// 流程：校验密钥 + 校验是站主本人 → 从 KV 取回待审批的修正 → 在【部署仓库 question-bank】开 PR
-//        改 banks/<id>.json + 追加 PENDING_SYNC.md → 合并 PR → 回执到 Telegram。
-// 需要的 secret/binding：TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_WEBHOOK_SECRET,
-//   GITHUB_TOKEN（细粒度，仅 question-bank：Contents 读写 + PR 读写），KV binding EDITS。
+// 流程：校验密钥 + 校验是站主本人 → 从 KV 取回待审批的修正 → 在【部署仓库 question-bank】用 Git Data API
+//        开 PR（改 banks/<id>.json + 追加 PENDING_SYNC.md）→ 合并 PR → 回执到 Telegram。
+// 用 Git Data API（blobs/trees/commits）而非 contents API：contents GET 对 >1MB 文件返回空 content，
+//   而 general.json 有 16MB——必须走 blobs 才读得到；写也用一棵树一次提交，原子、与文件大小无关。
+// secret/binding：TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_WEBHOOK_SECRET, GITHUB_TOKEN, KV binding EDITS。
 
 const OWNER = 'shicheng0810';
 const REPO = 'question-bank';
 const BASE = 'main';
+const SYNC_HEADER = '# 已批准、待同步回本地 public/banks/ 的修改\n\n> deploy:cf 部署前会读本文件提醒你先同步，避免本地部署覆盖掉这些已批准的改动。\n\n';
 
 const norm = (s) => String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+const oneline = (s) => String(s == null ? '' : s).replace(/[\r\n`]+/g, ' ').replace(/\s+/g, ' ').trim(); // 防 Markdown/换行注入
 
 function decodeB64(b64) {
-  const bin = atob(String(b64 || '').replace(/\n/g, ''));
+  const bin = atob(String(b64 || '').replace(/\s+/g, ''));
   const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
   return new TextDecoder().decode(bytes);
 }
@@ -49,6 +52,20 @@ async function gh(env, method, path, body) {
   return data;
 }
 
+// 读文件内容：contents GET（小文件直接拿 content）；>1MB 时 content 为空 → 用返回的 blob sha 走 blobs API。
+async function readFileContent(env, path, ref) {
+  let meta;
+  try { meta = await gh(env, 'GET', `/repos/${OWNER}/${REPO}/contents/${path}?ref=${ref}`); }
+  catch (e) { if (e.status === 404) return null; throw e; }
+  if (meta && meta.content && meta.encoding === 'base64') return { text: decodeB64(meta.content) };
+  if (meta && meta.sha) { const blob = await gh(env, 'GET', `/repos/${OWNER}/${REPO}/git/blobs/${meta.sha}`); return { text: decodeB64(blob.content) }; }
+  throw new Error('无法读取 ' + path);
+}
+async function createBlob(env, text) {
+  const r = await gh(env, 'POST', `/repos/${OWNER}/${REPO}/git/blobs`, { content: encodeB64(text), encoding: 'base64' });
+  return r.sha;
+}
+
 function applyCorrection(arr, pending) {
   const corrected = pending.corrected || {};
   if (!norm(corrected.question)) throw new Error('修正题干为空');
@@ -68,14 +85,19 @@ function applyCorrection(arr, pending) {
   if (Array.isArray(corrected.choices)) {
     const ch = corrected.choices.map((c) => String(c));
     if (ch.length < 2) throw new Error('选项不足 2 个');
+    const inRange = (a) => Number.isInteger(a) && a >= 0 && a < ch.length;
     nq.choices = ch;
     if (Array.isArray(corrected.answers)) {
-      const a = corrected.answers.filter((x) => Number.isInteger(x) && x >= 0 && x < ch.length);
+      const a = corrected.answers.filter(inRange);
       if (!a.length) throw new Error('多选答案非法');
       nq.answers = a; delete nq.answer;
-    } else if (Number.isInteger(corrected.answer) && corrected.answer >= 0 && corrected.answer < ch.length) {
+    } else if (inRange(corrected.answer)) {
       nq.answer = corrected.answer; delete nq.answers;
-    } else throw new Error('正确答案越界');
+    } else if (Array.isArray(orig.answers) && orig.answers.every(inRange)) {
+      nq.answers = orig.answers; delete nq.answer; // corrected 没给答案 → 沿用原答案（对新选项仍合法）
+    } else if (inRange(orig.answer)) {
+      nq.answer = orig.answer; delete nq.answers;
+    } else throw new Error('正确答案缺失或越界');
   }
   arr[idx] = nq;
   return { idx, before: orig, after: nq };
@@ -94,76 +116,74 @@ function prBody(bank, r, pending) {
   const fmt = (q) => fence + 'json\n' + JSON.stringify({ question: q.question, choices: q.choices, answer: q.answer, answers: q.answers }, null, 2) + '\n' + fence;
   return [
     '访客通过站内「提议修正」提交，站主在 Telegram 批准后自动开此 PR。',
-    `题库: \`${bank}\`　来源: ${pending.question_source || '-'}`,
-    pending.note ? `备注: ${pending.note}` : '',
+    `题库: \`${bank}\`　来源: ${oneline(pending.question_source) || '-'}`,
+    pending.note ? `备注: ${oneline(pending.note)}` : '',
     `改动字段: ${changedFields(r)}`,
     `\n**改前**\n${fmt(r.before)}`,
     `\n**改后**\n${fmt(r.after)}`,
     '\n> 合并后 GitHub Pages 约 1 分钟更新；CF 站要等你下次 `deploy:cf`。本改动已记进 `PENDING_SYNC.md`，`deploy:cf` 会提醒你先把它同步回本地 `public/banks/`。',
   ].filter(Boolean).join('\n');
 }
-
-async function appendSyncNote(env, branch, bank, r, pending) {
-  const path = 'PENDING_SYNC.md';
-  let sha;
-  let prev = '# 已批准、待同步回本地 public/banks/ 的修改\n\n> deploy:cf 部署前会读本文件提醒你先同步，避免本地部署覆盖掉这些已批准的改动。\n\n';
-  try {
-    const f = await gh(env, 'GET', `/repos/${OWNER}/${REPO}/contents/${path}?ref=${branch}`);
-    sha = f.sha; prev = decodeB64(f.content);
-  } catch (e) { if (e.status !== 404) throw e; }
+function syncLine(bank, r, pending) {
   const date = new Date().toISOString().slice(0, 10);
-  const line = `- [${date}] \`${bank}\` ${pending.question_index ? '#' + pending.question_index + ' ' : ''}「${norm(r.after.question).slice(0, 60)}」— 改了: ${changedFields(r)}\n`;
-  await gh(env, 'PUT', `/repos/${OWNER}/${REPO}/contents/${path}`, Object.assign(
-    { message: `chore(sync-note): ${bank} approved edit`, content: encodeB64(prev + line), branch },
-    sha ? { sha } : {},
-  ));
+  return `- [${date}] \`${bank}\` 「${oneline(r.after.question).slice(0, 60)}」— 改了: ${changedFields(r)}\n`;
 }
 
 async function applyEditAsPR(env, pending) {
   const bank = String(pending.bank_id || '');
   if (!/^[A-Za-z0-9_-]{1,80}$/.test(bank)) throw new Error('bank_id 非法');
   const filePath = `banks/${bank}.json`;
-  const fileRes = await gh(env, 'GET', `/repos/${OWNER}/${REPO}/contents/${filePath}?ref=${BASE}`);
-  const arr = JSON.parse(decodeB64(fileRes.content));
+  // 1) 读题库文件（大文件走 blobs）→ 应用修正
+  const file = await readFileContent(env, filePath, BASE);
+  if (!file) throw new Error(`题库文件不存在: ${filePath}`);
+  const arr = JSON.parse(file.text);
   if (!Array.isArray(arr)) throw new Error('题库文件不是数组');
   const r = applyCorrection(arr, pending);
-
+  // 2) 读 + 追加 PENDING_SYNC.md
+  const noteFile = await readFileContent(env, 'PENDING_SYNC.md', BASE);
+  const noteText = (noteFile ? noteFile.text : SYNC_HEADER) + syncLine(bank, r, pending);
+  // 3) base commit + tree
   const ref = await gh(env, 'GET', `/repos/${OWNER}/${REPO}/git/ref/heads/${BASE}`);
-  const branch = `edit-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
-  await gh(env, 'POST', `/repos/${OWNER}/${REPO}/git/refs`, { ref: `refs/heads/${branch}`, sha: ref.object.sha });
-
+  const baseCommitSha = ref.object.sha;
+  const baseCommit = await gh(env, 'GET', `/repos/${OWNER}/${REPO}/git/commits/${baseCommitSha}`);
+  // 4) blobs + 一棵树 + 一个 commit（两文件一次提交，原子、与大小无关）
+  const bankBlob = await createBlob(env, JSON.stringify(arr, null, 2) + '\n');
+  const noteBlob = await createBlob(env, noteText);
+  const tree = await gh(env, 'POST', `/repos/${OWNER}/${REPO}/git/trees`, {
+    base_tree: baseCommit.tree.sha,
+    tree: [
+      { path: filePath, mode: '100644', type: 'blob', sha: bankBlob },
+      { path: 'PENDING_SYNC.md', mode: '100644', type: 'blob', sha: noteBlob },
+    ],
+  });
   const stem = norm(r.after.question).slice(0, 60);
-  await gh(env, 'PUT', `/repos/${OWNER}/${REPO}/contents/${filePath}`, {
-    message: `fix(${bank}): visitor-approved correction — ${stem}`,
-    content: encodeB64(JSON.stringify(arr, null, 2) + '\n'),
-    sha: fileRes.sha, branch,
+  const commit = await gh(env, 'POST', `/repos/${OWNER}/${REPO}/git/commits`, {
+    message: `fix(${bank}): visitor-approved correction — ${stem}`, tree: tree.sha, parents: [baseCommitSha],
   });
-  await appendSyncNote(env, branch, bank, r, pending);
-
-  const pr = await gh(env, 'POST', `/repos/${OWNER}/${REPO}/pulls`, {
-    title: `fix(${bank}): ${stem}`, head: branch, base: BASE, body: prBody(bank, r, pending),
-  });
-  let merged = false;
-  try { const m = await gh(env, 'PUT', `/repos/${OWNER}/${REPO}/pulls/${pr.number}/merge`, { merge_method: 'squash' }); merged = !!m.merged; } catch (_e) { /* 合并失败就留着 PR */ }
-  return { number: pr.number, html_url: pr.html_url, merged };
+  // 5) 分支指向新 commit（放最后建，失败就删，避免残留孤儿分支）
+  const branch = `edit-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  await gh(env, 'POST', `/repos/${OWNER}/${REPO}/git/refs`, { ref: `refs/heads/${branch}`, sha: commit.sha });
+  try {
+    const pr = await gh(env, 'POST', `/repos/${OWNER}/${REPO}/pulls`, { title: `fix(${bank}): ${stem}`, head: branch, base: BASE, body: prBody(bank, r, pending) });
+    let merged = false;
+    try { const m = await gh(env, 'PUT', `/repos/${OWNER}/${REPO}/pulls/${pr.number}/merge`, { merge_method: 'squash' }); merged = !!m.merged; } catch (_e) { /* 合并失败留着 PR */ }
+    return { number: pr.number, html_url: pr.html_url, merged };
+  } catch (e) {
+    try { await gh(env, 'DELETE', `/repos/${OWNER}/${REPO}/git/refs/heads/${branch}`); } catch (_e) {}
+    throw e;
+  }
 }
 
 export async function onRequestPost(context) {
   const { request, env } = context;
-  // ① 校验 webhook 密钥（只有 Telegram 带对密钥的请求才处理）
   if (request.headers.get('X-Telegram-Bot-Api-Secret-Token') !== env.TELEGRAM_WEBHOOK_SECRET) {
     return new Response('forbidden', { status: 403 });
   }
   let update;
   try { update = await request.json(); } catch { return new Response('ok'); }
   const cq = update.callback_query;
-  if (!cq) return new Response('ok'); // 只处理按钮回调
-
-  // ② 只允许站主本人
-  if (String(cq.from && cq.from.id) !== String(env.TELEGRAM_CHAT_ID)) {
-    await answerCb(env, cq.id, '无权操作');
-    return new Response('ok');
-  }
+  if (!cq) return new Response('ok');
+  if (String(cq.from && cq.from.id) !== String(env.TELEGRAM_CHAT_ID)) { await answerCb(env, cq.id, '无权操作'); return new Response('ok'); }
   const data = String(cq.data || '');
   if (!data.startsWith('ap:')) { await answerCb(env, cq.id, '未知操作'); return new Response('ok'); }
   if (!env.EDITS || !env.GITHUB_TOKEN) { await answerCb(env, cq.id, '后端未配置 KV/Token'); return new Response('ok'); }
@@ -171,12 +191,13 @@ export async function onRequestPost(context) {
   const key = 'edit:' + data.slice(3);
   const raw = await env.EDITS.get(key);
   if (!raw) { await answerCb(env, cq.id, '已过期或已处理'); return new Response('ok'); }
+  // 认领：先删掉再干活，防止 Telegram 重发/双击导致重复开 PR（读→删窗口极小）。
+  await env.EDITS.delete(key);
   let pending;
   try { pending = JSON.parse(raw); } catch { await answerCb(env, cq.id, '数据损坏'); return new Response('ok'); }
 
   try {
     const pr = await applyEditAsPR(env, pending);
-    await env.EDITS.delete(key); // 防重复
     await answerCb(env, cq.id, `✅ 已开 PR #${pr.number}${pr.merged ? ' 并合并' : ''}`);
     if (cq.message) {
       await tg(env, 'editMessageReplyMarkup', { chat_id: cq.message.chat.id, message_id: cq.message.message_id, reply_markup: { inline_keyboard: [] } });
@@ -187,6 +208,8 @@ export async function onRequestPost(context) {
       });
     }
   } catch (e) {
+    // 失败：把待审批放回 KV，修好后可重试同一按钮
+    try { await env.EDITS.put(key, raw, { expirationTtl: 14 * 24 * 3600 }); } catch (_e) {}
     await answerCb(env, cq.id, '失败：' + String((e && e.message) || 'error').slice(0, 170));
   }
   return new Response('ok');

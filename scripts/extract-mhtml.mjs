@@ -47,10 +47,12 @@ const slug = (opts.id || baseName)
   .toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 48) || 'bank';
 const outPath = positionals[1] || path.join(path.dirname(input), baseName + '.json');
 
-// .mhtml 走 MIME 解码；.html 直接当 HTML 用。
+// .mhtml 走 MIME 解码（quoted-printable/base64 需要按字节读，故 latin1）；
+// .html 是普通文档，按 UTF-8 读，否则中文/重音/智能引号会乱码。
 const isMhtml = /\.(mhtml|mht)$/i.test(input);
-const raw = fs.readFileSync(input).toString('latin1');
-const html = isMhtml ? parseMHTML(raw).html : raw;
+const html = isMhtml
+  ? parseMHTML(fs.readFileSync(input).toString('latin1')).html
+  : fs.readFileSync(input, 'utf8');
 if (!html || !html.trim()) {
   console.error('解码后得到空 HTML——文件可能不是 Canvas 存档，或编码异常。');
   process.exit(1);
