@@ -1592,7 +1592,15 @@
     function toggleStar(id){
       starred.has(id)?starred.delete(id):starred.add(id);
       saveSet(STAR_KEY,starred);
-      rerenderCurrentView();
+      // 「只看收藏」视图里取消收藏 → 这张卡要从列表里消失，才需要重渲染。
+      if(viewMode==='star'){ rerenderCurrentView(); return; }
+      // 其它视图：只切这一张卡的星标 class + 刷新计数，【绝不重建整列表】。
+      // 之前每次点星都 rerenderCurrentView() 整列表重渲染 → 滚动乱跳、页面闪烁、
+      // 重建期间手指/光标落到了别的卡 → 误标其他题。只动这一张就都没了。
+      const card=document.getElementById("card-"+id);
+      const btn=card&&card.querySelector(".star-btn");
+      if(btn) btn.classList.toggle("starred", starred.has(id));
+      updateButtons();
     }
 
     function getBaseQuestions(){
