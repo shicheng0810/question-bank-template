@@ -1,0 +1,9 @@
+name = "question-bank"
+compatibility_date = "2025-06-01"
+
+# KV：暂存"待审批的题目修正"。feedback Function 写入、tg-webhook 读取（按钮回调凭短 id 取回）。
+# 故意不设 pages_build_output_dir —— 现有部署脚本用显式 `wrangler pages deploy docs --project-name=question-bank`，
+# 设了 build_output_dir 反而会和"显式目录参数"冲突。bindings 仍会被 `wrangler pages deploy <dir>` 读取并应用。
+[[kv_namespaces]]
+binding = "EDITS"
+id = "defda68cdf274d2cad85b40066232daf"
