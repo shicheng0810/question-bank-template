@@ -54,7 +54,7 @@ HARD RULES (the importer validates every record and silently drops malformed one
 3. Every object MUST have both:
    - "id": a unique, non-empty string ("q1", "q2", ... unique within the file).
    - "question": the stem as plain text (use \n for line breaks).
-4. Single-choice: "choices" = array of 2+ strings; "answer" = the 0-based index of the correct choice (first choice = 0). It must be an integer in range — never the answer text, never 1-based.
+4. Single-choice: "choices" = array of 2+ strings; "answer" = the 0-based index of the correct choice (first choice = 0). A single integer like 2 — NOT an array like [2], not the answer text, not 1-based. Do not add a "type" field to choice questions (only fill-in uses "type":"fill").
 5. Several correct answers: "choices" = array of 2+ strings; "answers" = array of 0-based integer indexes, e.g. [0, 2]. Use the PLURAL key "answers" (not "answer").
 6. Fill-in-the-blank: "type": "fill"; put ____ (4+ underscores) in "question" where each blank goes; "blanks" = an array with one entry per blank, each entry an array of every accepted answer — e.g. [["8","eight"]] (one blank, two spellings) or [["a"],["b"]] (two blanks).
 7. Optional: "source" (string, where it came from), "image" (an image URL or a data:image/...;base64 string, or an array of them).

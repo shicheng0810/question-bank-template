@@ -205,6 +205,17 @@
         var bad = false;
         // 缺 id 自动补一个（本地练习够用；id 仅用于错题/收藏的存储 key）——AI 产出最常见的“缺字段”
         if (!String(rec.id == null ? "" : rec.id).trim()) rec.id = "auto-" + (idx + 1);
+        // —— 归一化便宜 AI 的常见偏差（实测 Gemini 输出）——
+        if (rec.id != null && typeof rec.id !== "string") rec.id = String(rec.id); // 数字 id → 字符串
+        // 单选答案被包成数组：answer:[2] → answer:2；answer:[0,2] → answers:[0,2]
+        if (Array.isArray(rec.answer)){
+          if (rec.answer.length === 1) rec.answer = rec.answer[0];
+          else { rec.answers = rec.answer; delete rec.answer; }
+        }
+        // 索引写成字符串数字："2" → 2（answer 与 answers 都兜）
+        var toIdx = function(v){ return (typeof v === "string" && /^[0-9]+$/.test(v.trim())) ? parseInt(v, 10) : v; };
+        if (rec.answer !== undefined && rec.answer !== null) rec.answer = toIdx(rec.answer);
+        if (Array.isArray(rec.answers)) rec.answers = rec.answers.map(toIdx);
         var hasImg = !!(rec.image && (typeof rec.image === "string" || (Array.isArray(rec.image) && rec.image.length)));
         if (!String(rec.question == null ? "" : rec.question).trim() && !hasImg) bad = true;
         var isFill = rec.type === "fill" || Array.isArray(rec.blanks);
