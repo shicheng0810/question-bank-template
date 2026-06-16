@@ -302,13 +302,20 @@ test('feedback: per-question report + general suggestion modals wire up and capt
   await page.locator('#qb-suggest [aria-label="Close"]').click();
   await expect(page.getByTestId('qb-suggest')).toBeHidden();
 
-  // 题卡「⚐ 报错」打开报错弹窗，自动带上下文（题号/来源）
+  // 题卡「⚐ 报错」打开内联编辑器（提议修正），自动带上下文 + 预填题干/选项
   const firstCard = page.locator('.question-card').nth(0);
   await firstCard.locator('.qb-report-btn').click();
   const report = page.getByTestId('qb-report');
   await expect(report).toBeVisible();
   await expect(page.locator('#qb-report-ctx')).toContainText('#1');
-  // 不选类型直接提交 → 提示选类型
+  // 题干预填（可编辑）、选项行渲染出来
+  await expect(page.locator('#qb-edit-stem')).not.toHaveValue('');
+  expect(await page.locator('#qb-edit-choices .qb-edit-choice').count()).toBeGreaterThanOrEqual(2);
+  // 什么都没改就提交 → 校验拦下（按钮不死）
+  await page.locator('#qb-report-send').click();
+  await expect(page.locator('#qb-report-status')).toHaveText(/.+/);
+  // 改一下题干 → 可以提交（走降级出口，状态变成"已收到/已复制"之类）
+  await page.locator('#qb-edit-stem').fill('Edited stem for test');
   await page.locator('#qb-report-send').click();
   await expect(page.locator('#qb-report-status')).toHaveText(/.+/);
 });

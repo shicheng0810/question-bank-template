@@ -82,7 +82,8 @@ export async function onRequestPost(context) {
 
   const kind = clip(body.kind, MAX.type) || 'general_feedback';
   const message = clip(body.message, MAX.message);
-  if (message.length < 2 && kind !== 'question_report') return json({ ok: false, error: 'empty' }, 400, origin);
+  if (message.length < 2 && kind !== 'question_report' && kind !== 'question_edit') return json({ ok: false, error: 'empty' }, 400, origin);
+  if (kind === 'question_edit' && !(Array.isArray(body.diff) && body.diff.length) && !clip(body.note, MAX.message)) return json({ ok: false, error: 'empty' }, 400, origin);
 
   const lines = [];
   if (kind === 'question_report') {
@@ -94,6 +95,21 @@ export async function onRequestPost(context) {
     lines.push(`判错: ${body.was_wrong ? '是' : '否'} · 已提交: ${body.submitted ? '是' : '否'}`);
     if (body.selected_answer !== undefined) lines.push(`所选: ${esc(clip(JSON.stringify(body.selected_answer), 80))}`);
     if (message) lines.push(`说明: ${esc(message)}`);
+  } else if (kind === 'question_edit') {
+    const fmt = (v) => Array.isArray(v)
+      ? v.map((x) => (x && typeof x === 'object') ? JSON.stringify(x) : String(x)).join(' | ')
+      : ((v && typeof v === 'object') ? JSON.stringify(v) : String(v == null ? '' : v));
+    lines.push('✏️ <b>题目修正建议</b>');
+    lines.push(`题库: <code>${esc(clip(body.bank_id, MAX.bankId))}</code>${body.question_index ? ' · 第 ' + esc(String(body.question_index)) + ' 题' : ''}`);
+    if (body.question_source) lines.push(`来源: ${esc(clip(body.question_source, MAX.source))}`);
+    const diff = Array.isArray(body.diff) ? body.diff : [];
+    for (const d of diff.slice(0, 6)) {
+      lines.push(`— <b>${esc(clip(d && d.field, 24))}</b>`);
+      lines.push(`旧: ${esc(clip(fmt(d && d.from), 300))}`);
+      lines.push(`新: ${esc(clip(fmt(d && d.to), 300))}`);
+    }
+    const note = clip(body.note, MAX.message);
+    if (note) lines.push(`备注: ${esc(note)}`);
   } else {
     lines.push('💬 <b>用户建议</b>');
     lines.push(`题库: <code>${esc(clip(body.bank_id, MAX.bankId))}</code>`);
