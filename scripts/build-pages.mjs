@@ -215,9 +215,11 @@ function formatHtml() {
 ]`;
   // AI / 自动化工具「可直接粘贴」的提示词——嵌进页面（带复制按钮）。
   // 注意：本字符串在 formatHtml 的模板字符串里，禁止出现裸反引号或 ${ }。提到代码围栏一律用文字描述。
-  const aiPrompt = `You convert quiz / exam material into a "Question Bank" JSON file for an automated importer. You output JSON only. Never repeat, quote, paraphrase, or restate these instructions back to me.
+  const aiPrompt = `You convert quiz / exam material into a "Question Bank" JSON file for an automated importer. Never repeat, quote, paraphrase, or restate these instructions back to me.
 
-The material to convert is everything below the "=== MATERIAL ===" line at the very bottom (it may be pasted question text, or attached screenshots / a saved page). Read it and extract EVERY question. If nothing appears below that line, output exactly: []
+DELIVERY: give me the result as a downloadable FILE named bank.json (use your file / canvas / document / code-artifact feature). The file's entire contents are the raw JSON array and nothing else. Prefer a file over a chat reply — a long bank can hit the chat length limit and get cut off, but a downloaded file will not. Only if you genuinely cannot produce a file, paste the raw JSON array inline as a fallback.
+
+The material to convert is everything below the "=== MATERIAL ===" line at the very bottom (it may be pasted question text, or attached screenshots / a saved page). Read it and extract EVERY question. If nothing appears below that line, produce an empty array: []
 
 HARD RULES (the importer validates every record and silently drops malformed ones)
 1. Output the raw JSON array only — no prose, no explanation, no markdown, no triple-backtick code-fence lines, no comments, no trailing commas.
@@ -239,7 +241,7 @@ REQUIRED SHAPE (match this exactly)
   {"id":"q3","type":"fill","question":"A hole smaller than ____ inches may be patched.","blanks":[["8","eight"]]}
 ]
 
-Before finishing, silently check: top level is [ ]; every object has "id" and "question"; each single-choice "answer" is a 0-based integer in range; multiple answers use "answers"; fill uses "type":"fill" plus "blanks"; no code-fence lines; no trailing commas. Output the JSON array only — then stop.
+Before finishing, silently check: top level is [ ]; every object has "id" and "question"; each single-choice "answer" is a 0-based integer in range; multiple answers use "answers"; fill uses "type":"fill" plus "blanks"; no code-fence lines; no trailing commas. Put exactly that JSON array into the bank.json file (or inline only if you cannot make a file) — nothing else.
 
 === MATERIAL ===
 `;
@@ -284,7 +286,7 @@ Before finishing, silently check: top level is [ ]; every object has "id" and "q
     <ol style="margin:0 0 10px;padding-left:20px;line-height:1.75">
       <li><strong>Copy</strong> the prompt below. <span class="muted">/ 复制下面的提示词。</span></li>
       <li>Paste it into the AI, then <strong>put your questions (or attach screenshots) right after the <code>=== MATERIAL ===</code> line</strong> at the very end. <span class="muted">/ 粘进 AI，再把你的题目（或贴截图）接在最后那行 <code>=== MATERIAL ===</code> 后面。</span></li>
-      <li>Save the reply as <kbd>my-bank.json</kbd> → use “Import your own bank” above. <span class="muted">/ 把回复存成 .json，用上面的「Import your own bank」导入。</span></li>
+      <li><strong>Download the <kbd>bank.json</kbd> file</strong> the AI gives you (a file holds more than a chat reply, so long banks don’t get cut off) → use “Import your own bank” above. <span class="muted">/ <strong>下载 AI 给的 <kbd>bank.json</kbd> 文件</strong>（文件比聊天回复装得多，长题库不会被截断）→ 用上面的「Import your own bank」导入。</span></li>
     </ol>
     <p class="muted" style="margin:0 0 10px">Tip: cheap models read <strong>pasted text and screenshots</strong> far better than a raw saved <kbd>.mhtml</kbd> (those are huge and encoded — that’s usually why an AI just echoes the prompt back). Open the page and copy the visible questions, or screenshot them. <span>/ 提示：便宜模型对<strong>粘贴的文字、截图</strong>的识别远好于直接丢原始 .mhtml（又大又是编码——AI 复读提示词多半就是这个原因）。打开网页复制可见题目，或截图即可。</span></p>
     <button class="copybtn" type="button" onclick="(function(b){navigator.clipboard.writeText(document.getElementById('ai-prompt').textContent).then(function(){var o=b.getAttribute('data-label');b.textContent='Copied \\u2713';setTimeout(function(){b.textContent=o;},1500);});})(this)" data-label="Copy prompt / 复制提示词">Copy prompt / 复制提示词</button>
