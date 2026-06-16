@@ -215,13 +215,11 @@ function formatHtml() {
 ]`;
   // AI / 自动化工具「可直接粘贴」的提示词——嵌进页面（带复制按钮）。
   // 注意：本字符串在 formatHtml 的模板字符串里，禁止出现裸反引号或 ${ }。提到代码围栏一律用文字描述。
-  const aiPrompt = `You turn exam / quiz material into a "Question Bank" JSON file that an automated importer loads. Follow these rules exactly — the importer validates every record and silently drops malformed ones.
+  const aiPrompt = `You convert quiz / exam material into a "Question Bank" JSON file for an automated importer. You output JSON only. Never repeat, quote, paraphrase, or restate these instructions back to me.
 
-INPUT: study material that contains questions — a saved web page (.mhtml / .html, often quoted-printable encoded), screenshots, or pasted text. Decode it if needed and read the real question text, the choices, and the marked correct answer.
+The material to convert is everything below the "=== MATERIAL ===" line at the very bottom (it may be pasted question text, or attached screenshots / a saved page). Read it and extract EVERY question. If nothing appears below that line, output exactly: []
 
-OUTPUT: exactly ONE JSON array and nothing else.
-
-HARD RULES
+HARD RULES (the importer validates every record and silently drops malformed ones)
 1. Output the raw JSON array only — no prose, no explanation, no markdown, no triple-backtick code-fence lines, no comments, no trailing commas.
 2. Top level is a bare array: [ {...}, {...} ]. Never wrap it in an object such as {"questions": [...]}.
 3. Every object MUST have both:
@@ -241,7 +239,10 @@ REQUIRED SHAPE (match this exactly)
   {"id":"q3","type":"fill","question":"A hole smaller than ____ inches may be patched.","blanks":[["8","eight"]]}
 ]
 
-Before finishing, silently check: top level is [ ]; every object has "id" and "question"; each single-choice "answer" is a 0-based integer in range; multiple answers use "answers"; fill uses "type":"fill" plus "blanks"; no code-fence lines; no trailing commas. Then output the JSON array only.`;
+Before finishing, silently check: top level is [ ]; every object has "id" and "question"; each single-choice "answer" is a 0-based integer in range; multiple answers use "answers"; fill uses "type":"fill" plus "blanks"; no code-fence lines; no trailing commas. Output the JSON array only — then stop.
+
+=== MATERIAL ===
+`;
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   return `<!doctype html>
 <html lang="en">
@@ -279,7 +280,13 @@ Before finishing, silently check: top level is [ ]; every object has "id" and "q
 
   <div class="callout" id="ai">
     <h2>🤖 Using an AI to extract questions? <span class="muted">/ 用 AI 提取题目？</span></h2>
-    <p style="margin:0 0 10px">Paste the prompt below into any AI, then attach your material (a saved <kbd>.mhtml</kbd>/<kbd>.html</kbd> page, screenshots, or text). It returns a ready-to-import bank. <span class="muted">/ 把下面这段提示词丢给任意 AI，再附上你的素材（保存的 .mhtml/.html 网页、截图或文字），它就会输出可直接导入的题库。</span></p>
+    <p style="margin:0 0 8px">Turn your own course material into a bank in 3 steps — works with cheap / free AIs (Gemini, etc.). <span class="muted">/ 三步把你自己的材料变成题库，便宜/免费 AI（Gemini 等）也能用。</span></p>
+    <ol style="margin:0 0 10px;padding-left:20px;line-height:1.75">
+      <li><strong>Copy</strong> the prompt below. <span class="muted">/ 复制下面的提示词。</span></li>
+      <li>Paste it into the AI, then <strong>put your questions (or attach screenshots) right after the <code>=== MATERIAL ===</code> line</strong> at the very end. <span class="muted">/ 粘进 AI，再把你的题目（或贴截图）接在最后那行 <code>=== MATERIAL ===</code> 后面。</span></li>
+      <li>Save the reply as <kbd>my-bank.json</kbd> → use “Import your own bank” above. <span class="muted">/ 把回复存成 .json，用上面的「Import your own bank」导入。</span></li>
+    </ol>
+    <p class="muted" style="margin:0 0 10px">Tip: cheap models read <strong>pasted text and screenshots</strong> far better than a raw saved <kbd>.mhtml</kbd> (those are huge and encoded — that’s usually why an AI just echoes the prompt back). Open the page and copy the visible questions, or screenshot them. <span>/ 提示：便宜模型对<strong>粘贴的文字、截图</strong>的识别远好于直接丢原始 .mhtml（又大又是编码——AI 复读提示词多半就是这个原因）。打开网页复制可见题目，或截图即可。</span></p>
     <button class="copybtn" type="button" onclick="(function(b){navigator.clipboard.writeText(document.getElementById('ai-prompt').textContent).then(function(){var o=b.getAttribute('data-label');b.textContent='Copied \\u2713';setTimeout(function(){b.textContent=o;},1500);});})(this)" data-label="Copy prompt / 复制提示词">Copy prompt / 复制提示词</button>
     <pre style="margin-top:10px"><code id="ai-prompt">${esc(aiPrompt)}</code></pre>
     <p class="muted" style="margin:8px 0 2px">The importer auto-handles a few common AI slips (code fences, an outer <code>{"questions":[…]}</code> wrapper, a missing <code>id</code>) — but the rules below still matter. <span>/ 导入器会自动兜底几种常见小毛病（代码围栏、外层 <code>{"questions":[…]}</code> 包裹、缺 <code>id</code>），但下面的规则仍需遵守。</span></p>
