@@ -41,3 +41,6 @@ dist-site/
 .e2e-pages/
 .particle-demos/
 .fx-preview/
+
+# wrangler 本地缓存
+.wrangler/
