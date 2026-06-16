@@ -57,12 +57,16 @@ function escapeHTML(value) {
 
 function playerHtml(payload, bankId) {
   const ns = /^[A-Za-z0-9_-]{1,64}$/.test(String(bankId)) ? String(bankId) : 'amt';
+  // 本地导入题库（local.html）去掉反馈/报错：那些反馈会进站主 Telegram，但访客自己导入的
+  // 私有题库报错没有意义、只会变噪声。站点发布的题库（remote = player.html）保留反馈。
+  const isLocal = payload && payload.mode === 'local-bank';
+  const uiFeatures = isLocal ? Object.assign({}, UI_FEATURES, { feedback: false }) : UI_FEATURES;
   // <script> 内联转义的唯一权威实现在 testable-core（不再维护镜像拷贝）
   return template
     .replace(MARKER, safeJSONStringForScript(JSON.stringify(payload)))
     .replace(NS_MARKER, ns)
     .replace(FB_MARKER, safeJSONStringForScript(JSON.stringify(FEEDBACK_CONFIG)))
-    .replace(UI_MARKER, safeJSONStringForScript(JSON.stringify(UI_FEATURES)));
+    .replace(UI_MARKER, safeJSONStringForScript(JSON.stringify(uiFeatures)));
 }
 
 // BANKS_MANIFEST 可注入替代清单（e2e 用测试清单，与作者本地的上/下架状态解耦）

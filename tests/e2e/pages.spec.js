@@ -249,6 +249,9 @@ test('local import normalizes cheap-AI output: numeric id, answer:[n] array, no 
   await expect(page.locator('.question-card')).toHaveCount(3);
   // 筛选面板无分类时隐藏
   await expect(page.locator('details.filter-panel')).toBeHidden();
+  // 本地导入题库不应有反馈/报错入口（会进站主 Telegram，对访客私有库无意义；站点发布库才保留）
+  await expect(page.locator('#suggest-btn')).toBeHidden();
+  await expect(page.locator('.qb-report-btn')).toHaveCount(0);
 });
 
 test('bulk-clear buttons empty the wrong list and star list', async ({ page }) => {
