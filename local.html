@@ -197,6 +197,7 @@
         </select>
       </span>
       <button class="btn" id="theme-toggle" type="button" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle theme">🌙</button>
+      <button class="btn" id="account-btn" type="button" onclick="onAccountBtn()" data-testid="account-btn" title="Sign in / history">👤 <span id="account-label">Sign in</span></button>
       <button class="btn" id="suggest-btn" onclick="openSuggestModal()" data-testid="suggest-btn" data-i18n="fb_suggest_btn">💬 Feedback</button>
       <button class="btn" id="guide-btn" onclick="openGuide()" data-testid="guide-open-btn" data-i18n="guide_summary">Button Guide</button>
       <button class="btn" id="tutorial-help-btn" onclick="openTutorial()" data-testid="tutorial-help-btn"
@@ -273,6 +274,15 @@
     .qb-edit-addrow{margin:8px 0 2px}
     .qb-edit-add{font-size:12.5px; padding:5px 10px}
     .qb-hp{position:absolute; left:-9999px; width:1px; height:1px; opacity:0} /* 蜜罐：人看不见，机器人会填 */
+    /* 登录 / 做题历史 */
+    .qb-hist-list{max-height:48vh; overflow:auto; margin:4px 0 2px; display:flex; flex-direction:column; gap:8px}
+    .qb-hist-row{display:flex; align-items:center; gap:8px; padding:9px 11px; border:1px solid var(--border); border-radius:var(--radius-xs); background:var(--card-2)}
+    .qb-hist-main{flex:1; min-width:0}
+    .qb-hist-title{font-weight:600; font-size:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+    .qb-hist-sub{font-size:12px; color:var(--ink-soft); margin-top:2px}
+    .qb-hist-row .btn{flex:0 0 auto; padding:5px 10px; font-size:13px}
+    .qb-hist-row .qb-x{width:30px; height:30px}
+    #account-btn{white-space:nowrap; max-width:170px; overflow:hidden; text-overflow:ellipsis}
   </style>
   <!-- All Banks 合并页：开始前选择要练习的题库（公开勾选、加密解锁加入），按所选现场合并 -->
   <div class="tut-overlay" id="qb-allbanks" hidden data-testid="qb-allbanks" style="align-items:center">
@@ -340,6 +350,39 @@
         <button class="btn submit-btn" id="qb-suggest-send" onclick="onSuggestSubmit()" data-i18n="fb_suggest_submit">Send feedback</button>
       </div>
       <div class="qb-fb-status" id="qb-suggest-status"></div>
+    </div>
+  </div>
+
+  <div class="tut-overlay" id="qb-login" hidden data-testid="qb-login" onclick="if(event.target===this)closeLoginModal()">
+    <div class="tut-card qb-fb-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+        <h2 data-i18n="login_title" style="margin:0;font-size:1.1rem">Sign in to save your history</h2>
+        <button class="btn qb-x" onclick="closeLoginModal()" aria-label="Close">✕</button>
+      </div>
+      <p class="meta" data-i18n="login_hint" style="margin:6px 0 8px">Pick a code and remember it.</p>
+      <input type="text" id="qb-login-code" maxlength="64" autocomplete="off" autocapitalize="off" spellcheck="false" data-i18n-placeholder="login_ph" onkeydown="if(event.key==='Enter'){event.preventDefault();doLogin();}">
+      <div class="tut-actions">
+        <button class="btn" onclick="closeLoginModal()" data-i18n="login_cancel">Cancel</button>
+        <span class="spacer"></span>
+        <button class="btn submit-btn" id="qb-login-go" onclick="doLogin()" data-i18n="login_go">Enter</button>
+      </div>
+      <div class="qb-fb-status" id="qb-login-status"></div>
+    </div>
+  </div>
+
+  <div class="tut-overlay" id="qb-history" hidden data-testid="qb-history" onclick="if(event.target===this)closeHistory()">
+    <div class="tut-card qb-fb-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+        <h2 data-i18n="history_title" style="margin:0;font-size:1.1rem">Your practice history</h2>
+        <button class="btn qb-x" onclick="closeHistory()" aria-label="Close">✕</button>
+      </div>
+      <p class="meta" data-i18n="history_sub" style="margin:6px 0 8px">Your latest 10 rounds.</p>
+      <div id="qb-history-list" class="qb-hist-list"></div>
+      <div class="tut-actions">
+        <button class="btn" onclick="logout()" data-i18n="hist_logout">Sign out</button>
+        <span class="spacer"></span>
+        <button class="btn" onclick="closeHistory()" data-i18n="login_cancel">Cancel</button>
+      </div>
     </div>
   </div>
 
@@ -415,6 +458,8 @@
         fb_email_label: "Email (optional, so I can reply)", fb_suggest_submit: "Send feedback",
         fb_cancel: "Cancel", fb_need_type: "Please choose a problem type.", fb_need_msg: "Please add a short note.",
         fb_sending: "Sending…", fb_thanks: "✅ Got it — thank you!", fb_mailto_hint: "Opening your email app…", fb_copied_hint: "Copied to clipboard — paste it to {email}", fb_error: "Couldn't send, please try later.",
+        login_btn: "Sign in", login_title: "Sign in to save your history", login_hint: "Pick a code and remember it — use the same code on any device to find your history. Anyone who knows the code can see that history, so don't reuse a real password.", login_ph: "your code (4+ characters)", login_go: "Enter", login_cancel: "Cancel", login_ing: "Signing in…", login_ok: "✅ Signed in", login_fail: "Couldn't sign in, try again.", login_too_short: "Code needs at least 4 characters.", login_rate: "Too many tries — wait a minute.", login_neterr: "Network error, try again later.",
+        history_title: "Your practice history", history_sub: "Your latest 10 rounds (the oldest is dropped). “Load” reopens a round with your answers.", hist_loading: "Loading…", hist_empty: "No saved rounds yet — answer a few questions and they'll show up here.", hist_load: "Load", hist_neterr: "Couldn't load history.", hist_del_confirm: "Delete this record?", hist_load_fail: "Couldn't load that round.", hist_logout: "Sign out", hist_unanswered: "not started",
         filter_summary: "Filter Question Banks",
         select_all: "Select All", select_none: "Select None", confirm: "Confirm",
         randomize: "Randomize + Reset",
@@ -482,6 +527,8 @@
         fb_email_label: "邮箱（可选，方便我回复你）", fb_suggest_submit: "发送反馈",
         fb_cancel: "取消", fb_need_type: "请选择问题类型。", fb_need_msg: "请填写一句话说明。",
         fb_sending: "提交中…", fb_thanks: "✅ 已收到，谢谢你的反馈！", fb_mailto_hint: "正在打开你的邮件应用…", fb_copied_hint: "已复制到剪贴板——请粘贴发给 {email}", fb_error: "提交失败，请稍后再试。",
+        login_btn: "登录", login_title: "登录以保存历史", login_hint: "自定义一个码并记住它——换设备也用同一个码就能找回你的历史。知道这个码的人就能看到那份历史，所以别用你别处的真实密码。", login_ph: "你的码（4 位以上）", login_go: "进入", login_cancel: "取消", login_ing: "登录中…", login_ok: "✅ 已登录", login_fail: "登录失败，请重试。", login_too_short: "码至少要 4 位。", login_rate: "尝试太频繁，请稍等一分钟。", login_neterr: "网络错误，请稍后再试。",
+        history_title: "你的做题历史", history_sub: "最近 10 轮（超出自动删最旧）。点「载入」回到那一轮、带上你当时的作答。", hist_loading: "加载中…", hist_empty: "还没有记录——做几道题就会出现在这里。", hist_load: "载入", hist_neterr: "加载历史失败。", hist_del_confirm: "删除这条记录？", hist_load_fail: "载入这一轮失败。", hist_logout: "退出登录", hist_unanswered: "未开始",
         filter_summary: "筛选题库",
         select_all: "全选", select_none: "全不选", confirm: "确认",
         randomize: "打乱并重置",
@@ -549,6 +596,8 @@
         fb_email_label: "Email (opcional, para responderte)", fb_suggest_submit: "Enviar comentarios",
         fb_cancel: "Cancelar", fb_need_type: "Elige un tipo de problema.", fb_need_msg: "Escribe una breve nota.",
         fb_sending: "Enviando…", fb_thanks: "✅ ¡Recibido, gracias!", fb_mailto_hint: "Abriendo tu app de correo…", fb_copied_hint: "Copiado — pégalo y envíalo a {email}", fb_error: "No se pudo enviar, inténtalo más tarde.",
+        login_btn: "Entrar", login_title: "Entra para guardar tu historial", login_hint: "Elige un código y recuérdalo — usa el mismo en cualquier dispositivo para encontrar tu historial. Quien conozca el código verá ese historial, así que no uses una contraseña real.", login_ph: "tu código (4+ caracteres)", login_go: "Entrar", login_cancel: "Cancelar", login_ing: "Entrando…", login_ok: "✅ Sesión iniciada", login_fail: "No se pudo entrar, reinténtalo.", login_too_short: "El código necesita 4+ caracteres.", login_rate: "Demasiados intentos — espera un minuto.", login_neterr: "Error de red, inténtalo más tarde.",
+        history_title: "Tu historial de práctica", history_sub: "Tus últimas 10 rondas (se elimina la más antigua). “Cargar” reabre una ronda con tus respuestas.", hist_loading: "Cargando…", hist_empty: "Aún no hay rondas — responde algunas preguntas y aparecerán aquí.", hist_load: "Cargar", hist_neterr: "No se pudo cargar el historial.", hist_del_confirm: "¿Eliminar este registro?", hist_load_fail: "No se pudo cargar esa ronda.", hist_logout: "Cerrar sesión", hist_unanswered: "sin empezar",
         filter_summary: "Filtrar bancos de preguntas",
         select_all: "Seleccionar todo", select_none: "Ninguno", confirm: "Confirmar",
         randomize: "Mezclar y reiniciar",
@@ -648,6 +697,9 @@
       // 2) 反馈/报错：关则隐藏顶栏「💬 Feedback」（题卡内 ⚐ 报错按钮在渲染时已按开关跳过）
       if (!UI_FEATURES.feedback){
         const sb = document.getElementById("suggest-btn"); if (sb) sb.hidden = true;
+        const ab = document.getElementById("account-btn"); if (ab) ab.hidden = true; // 登录/历史依赖后端，离线/本地导出隐藏
+      } else {
+        updateAuthUI();
       }
       // 3) 新手教程：关则隐藏「?」按钮（首屏自动弹出在 maybeStartTutorial 里另行拦截）
       if (!UI_FEATURES.tutorial){
@@ -1112,7 +1164,7 @@
     function deriveCategoriesFromQuestions(){
       const map=new Map();
       for(const q of QUESTION_BANK){
-        const banks = Array.isArray(q.banks) ? q.banks : getBanks(q);
+        const banks = (Array.isArray(q.banks) && q.banks.length) ? q.banks : getBanks(q);
         for(const prefix of banks){
           if(!prefix || map.has(prefix)) continue;
           map.set(prefix, prettifyPrefix(prefix));
@@ -1526,6 +1578,7 @@
       st.feedbackHTML=html;
       syncQuestionUI(qId);
       updateStats();
+      scheduleSnapshotSave(); // 登录用户：防抖自动存本轮快照
     }
 
     function toggleKeys(qId){
@@ -1599,7 +1652,13 @@
       // 重建期间手指/光标落到了别的卡 → 误标其他题。只动这一张就都没了。
       const card=document.getElementById("card-"+id);
       const btn=card&&card.querySelector(".star-btn");
-      if(btn) btn.classList.toggle("starred", starred.has(id));
+      if(btn){
+        var on=starred.has(id);
+        btn.classList.toggle("starred", on);
+        var lbl=on?T("unstar"):T("star");          // 同步无障碍标签/悬浮提示，否则读屏会念反状态
+        btn.setAttribute("aria-label", lbl);
+        btn.setAttribute("title", lbl);
+      }
       updateButtons();
     }
 
@@ -1879,6 +1938,7 @@
 
     function shuffleAndRender(){
       resetSessionScoreState();
+      SESSION_ID = newSessionId(); // 每次重排 = 新一轮 = 一条新历史
       viewMode='all';
       specialFilterSource='base';
       activeRandom150Questions=null;
@@ -1940,6 +2000,7 @@
       sanitizeSavedSets();
       updateAutoBtn();
       shuffleAndRender();
+      checkPendingRestore(); // 若有「重新加载历史」待应用且属于本库，覆盖默认轮次
       setTimeout(maybeStartTutorial, 350);
     }
 
@@ -2001,6 +2062,246 @@
       setTimeout(closeFn, 1400);
     }
 
+    /* ================= 登录 + 做题历史（每用户最近 10 条快照，存 CF KV，跨设备） ================= */
+    // 复用反馈端点同一组 CF Function：把 /feedback 换成 /auth、/history。离线/本地导出关闭反馈时本段 UI 不显示。
+    var QB_API_BASE = (function(){
+      var ep = (FEEDBACK_CONFIG && FEEDBACK_CONFIG.endpoint) ? String(FEEDBACK_CONFIG.endpoint) : "";
+      if(/\/feedback$/.test(ep)) return ep.replace(/\/feedback$/, "");
+      if(/\/api\/?$/.test(ep)) return ep.replace(/\/$/, "");
+      return "https://question-bank-78u.pages.dev/api";
+    })();
+    var AUTH_KEY = "qb_auth_v1"; // localStorage：{ token, name }
+    function getAuth(){ try{ return JSON.parse(localStorage.getItem(AUTH_KEY) || "null"); }catch(_e){ return null; } }
+    function setAuth(a){ try{ localStorage.setItem(AUTH_KEY, JSON.stringify(a)); }catch(_e){} updateAuthUI(); }
+    function clearAuth(){ try{ localStorage.removeItem(AUTH_KEY); }catch(_e){} updateAuthUI(); }
+    function isLoggedIn(){ var a=getAuth(); return !!(a && a.token); }
+    function authHeaders(){ var a=getAuth(); return (a && a.token) ? { "Authorization": "Bearer " + a.token } : {}; }
+    function updateAuthUI(){
+      var lbl = document.getElementById("account-label"); if(!lbl) return;
+      var a = getAuth();
+      lbl.textContent = (a && a.name) ? a.name : T("login_btn");
+    }
+    function onAccountBtn(){ if(isLoggedIn()) openHistory(); else openLoginModal(); }
+
+    function openLoginModal(){
+      var m = document.getElementById("qb-login"); if(!m) return;
+      var inp = document.getElementById("qb-login-code"); if(inp) inp.value = "";
+      fbStatus("qb-login-status", "", "");
+      m.hidden = false;
+      if(inp) setTimeout(function(){ try{ inp.focus(); }catch(_e){} }, 60);
+    }
+    function closeLoginModal(){ var m=document.getElementById("qb-login"); if(m) m.hidden = true; }
+    async function doLogin(){
+      var inp = document.getElementById("qb-login-code");
+      var code = ((inp && inp.value) || "").trim();
+      if(code.length < 4){ fbStatus("qb-login-status", T("login_too_short"), "err"); return; }
+      var btn = document.getElementById("qb-login-go"); if(btn) btn.disabled = true;
+      fbStatus("qb-login-status", T("login_ing"), "");
+      try{
+        var res = await fetch(QB_API_BASE + "/auth", {
+          method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: code })
+        });
+        var d = {}; try{ d = await res.json(); }catch(_e){}
+        if(res.ok && d.ok && d.token){
+          setAuth({ token: d.token, name: (d.user && d.user.name) || code });
+          fbStatus("qb-login-status", T("login_ok"), "ok");
+          setTimeout(function(){ closeLoginModal(); openHistory(); }, 650);
+        } else if(res.status === 429 || (d && d.error === "rate_limited")){
+          fbStatus("qb-login-status", T("login_rate"), "err");
+        } else {
+          fbStatus("qb-login-status", T("login_fail"), "err");
+        }
+      }catch(_e){
+        fbStatus("qb-login-status", T("login_neterr"), "err");
+      }
+      if(btn) btn.disabled = false;
+    }
+    function logout(){ clearAuth(); closeHistory(); }
+
+    /* ---- 本轮快照 + 防抖自动保存 ---- */
+    var MERGED_BANK_IDS = null; // 合并练习页(all-banks)：本轮纳入的公开库 id；单库为 null
+    var SESSION_ID = null;      // 本轮 id（一次 shuffleAndRender 一个）；还原时改成被还原快照的 id
+    var RESTORING = false;      // 还原期间不触发自动保存
+    var _snapTimer = null;
+    function newSessionId(){ return "r" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+    function regradeOk(q, st){
+      if(isFill(q)) return !!checkFill(q, st.fillInputs).ok;
+      if(isMulti(q)) return setEqualsArray(st.selectedSet, q.answers.slice().sort(function(a,b){ return a-b; }));
+      return st.selectedIndex === q.answer;
+    }
+    function snapshotScopeList(){
+      if(Array.isArray(baseQuestions) && baseQuestions.length) return baseQuestions;
+      return Array.isArray(currentQuestions) ? currentQuestions : [];
+    }
+    function buildSnapshot(){
+      var round = snapshotScopeList();
+      var state = {}, answered = 0, correct = 0;
+      for(var i=0;i<round.length;i++){
+        var q = round[i]; if(!q) continue;
+        var st = uiState[q.id]; if(!st) continue;
+        var hasFill = Array.isArray(st.fillInputs) && st.fillInputs.some(function(v){ return String(v == null ? "" : v).trim(); });
+        var hasSel = (st.selectedIndex != null) || (st.selectedSet && st.selectedSet.size) || hasFill;
+        if(!st.submitted && !hasSel) continue;
+        state[q.id] = {
+          selectedIndex: (st.selectedIndex == null ? null : st.selectedIndex),
+          selectedSet: (st.selectedSet && st.selectedSet.size) ? Array.from(st.selectedSet) : undefined,
+          fillInputs: hasFill ? st.fillInputs.slice() : undefined,
+          submitted: !!st.submitted,
+          showKeys: !!st.showKeys
+        };
+        if(st.submitted){ answered++; if(regradeOk(q, st)) correct++; }
+      }
+      if(!SESSION_ID) SESSION_ID = newSessionId();
+      var h1 = document.querySelector('#quizApp h1');
+      return {
+        id: SESSION_ID,
+        bank_id: STORAGE_NS,
+        merged_banks: (Array.isArray(MERGED_BANK_IDS) && MERGED_BANK_IDS.length) ? MERGED_BANK_IDS.slice() : null,
+        title: (h1 && h1.textContent ? h1.textContent.trim() : STORAGE_NS),
+        ts: Date.now(),
+        viewMode: "all",
+        score: { correct: correct, answered: answered, total: round.length },
+        count: answered,
+        state: state,
+        scope: round.map(function(q){ return q.id; })
+      };
+    }
+    function scheduleSnapshotSave(){
+      if(RESTORING || !isLoggedIn()) return;
+      clearTimeout(_snapTimer);
+      _snapTimer = setTimeout(saveSnapshotNow, 1500);
+    }
+    async function saveSnapshotNow(){
+      if(!isLoggedIn()) return;
+      var snap = buildSnapshot();
+      if(!snap.count) return; // 没有已提交的题就不存
+      try{
+        await fetch(QB_API_BASE + "/history", {
+          method: "POST",
+          headers: Object.assign({ "Content-Type": "application/json" }, authHeaders()),
+          body: JSON.stringify({ snapshot: snap }),
+          keepalive: true
+        });
+      }catch(_e){ /* 自动保存失败静默，不打断做题 */ }
+    }
+
+    /* ---- 历史面板 ---- */
+    function openHistory(){
+      if(!isLoggedIn()){ openLoginModal(); return; }
+      var m = document.getElementById("qb-history"); if(!m) return;
+      m.hidden = false;
+      renderHistoryList();
+    }
+    function closeHistory(){ var m=document.getElementById("qb-history"); if(m) m.hidden = true; }
+    function fmtHistTime(ts){ try{ return new Date(ts).toLocaleString(); }catch(_e){ return ""; } }
+    async function renderHistoryList(){
+      var box = document.getElementById("qb-history-list"); if(!box) return;
+      box.innerHTML = '<div class="meta" style="padding:8px">' + escHTML(T("hist_loading")) + '</div>';
+      try{
+        var res = await fetch(QB_API_BASE + "/history", { headers: authHeaders() });
+        if(res.status === 401){ clearAuth(); closeHistory(); openLoginModal(); return; }
+        var d = {}; try{ d = await res.json(); }catch(_e){}
+        var items = (d && d.items) || [];
+        if(!items.length){ box.innerHTML = '<div class="meta" style="padding:8px">' + escHTML(T("hist_empty")) + '</div>'; return; }
+        box.innerHTML = items.map(function(it){
+          var sc = it.score ? (it.score.correct + "/" + it.score.answered + " ✓ · " + it.score.answered + "/" + it.score.total) : escHTML(T("hist_unanswered"));
+          var id = escapeAttr(it.id);
+          return '<div class="qb-hist-row">'
+            + '<div class="qb-hist-main"><div class="qb-hist-title">' + escHTML(it.title || it.bank_id) + '</div>'
+            + '<div class="qb-hist-sub">' + sc + ' · ' + escHTML(fmtHistTime(it.ts)) + '</div></div>'
+            + '<button class="btn" onclick="restoreSnapshot(\'' + id + '\')">' + escHTML(T("hist_load")) + '</button>'
+            + '<button class="btn qb-x" onclick="deleteSnapshot(\'' + id + '\')" aria-label="delete" title="delete">✕</button>'
+            + '</div>';
+        }).join("");
+      }catch(_e){
+        box.innerHTML = '<div class="meta" style="padding:8px;color:var(--danger-ink)">' + escHTML(T("hist_neterr")) + '</div>';
+      }
+    }
+    async function deleteSnapshot(id){
+      if(!confirm(T("hist_del_confirm"))) return;
+      try{ await fetch(QB_API_BASE + "/history?id=" + encodeURIComponent(id), { method: "DELETE", headers: authHeaders() }); }catch(_e){}
+      renderHistoryList();
+    }
+    async function restoreSnapshot(id){
+      var snap = null;
+      try{
+        var res = await fetch(QB_API_BASE + "/history?id=" + encodeURIComponent(id), { headers: authHeaders() });
+        if(res.status === 401){ clearAuth(); closeHistory(); openLoginModal(); return; }
+        var d = {}; try{ d = await res.json(); }catch(_e){}
+        snap = d && d.snapshot;
+      }catch(_e){}
+      if(!snap){ alert(T("hist_load_fail")); return; }
+      try{ sessionStorage.setItem("qb_restore", JSON.stringify(snap)); }catch(_e){}
+      closeHistory();
+      if(snap.bank_id === STORAGE_NS){ checkPendingRestore(); }   // 已在同一库：直接应用
+      else { location.href = "player.html?bank=" + encodeURIComponent(snap.bank_id); } // 跳到对应库后应用
+    }
+
+    /* ---- 还原 ---- */
+    function getPendingRestore(){
+      try{ var s = sessionStorage.getItem("qb_restore"); return s ? JSON.parse(s) : null; }catch(_e){ return null; }
+    }
+    function clearPendingRestore(){ try{ sessionStorage.removeItem("qb_restore"); }catch(_e){} }
+    function applyRestore(snap){
+      var byId = {};
+      for(var i=0;i<QUESTION_BANK.length;i++) byId[QUESTION_BANK[i].id] = QUESTION_BANK[i];
+      var list = [];
+      (snap.scope || []).forEach(function(id){ if(byId[id]) list.push(byId[id]); });
+      if(!list.length){ clearPendingRestore(); alert(T("hist_load_fail")); return; }
+      RESTORING = true;
+      resetSessionScoreState(); // 清零 totals/answeredOnce/uiState，再按快照重建
+      viewMode = 'all'; specialFilterSource = 'base';
+      activeRandom150Questions = null; activeRandom150SourcePool = null;
+      var stState = snap.state || {};
+      var submittedIds = [];
+      Object.keys(stState).forEach(function(id){
+        var s = stState[id], q = byId[id]; if(!q || !s) return;
+        var st = {
+          selectedIndex: (s.selectedIndex == null ? null : s.selectedIndex),
+          selectedSet: new Set(Array.isArray(s.selectedSet) ? s.selectedSet : []),
+          fillInputs: Array.isArray(s.fillInputs) ? s.fillInputs.slice() : (Array.isArray(q.blanks) ? Array(q.blanks.length).fill("") : []),
+          submitted: !!s.submitted,
+          feedbackHTML: "",
+          showKeys: !!s.showKeys
+        };
+        if(st.submitted){
+          var ok = regradeOk(q, st);
+          st.feedbackHTML = ok ? '<div class="correct">' + T('correct_fb') + '</div>' : '<div class="wrong">' + T('wrong_fb') + '</div>';
+          submittedIds.push(id);
+          totalAttempts++; answeredOnce.add(id);
+          if(ok) totalCorrect++;
+        }
+        uiState[id] = st;
+      });
+      baseQuestions = list.slice();
+      SESSION_ID = snap.id || newSessionId();
+      render(list);
+      // 已提交的题：先 hydrate 再补画反馈/锁定提交按钮（懒加载卡片默认不在视口里）
+      submittedIds.forEach(function(id){ try{ ensureHydrated(id); syncQuestionUI(id); }catch(_e){} });
+      updateButtons();
+      updateStats();
+      RESTORING = false;
+      clearPendingRestore();
+      try{ window.scrollTo(0, 0); }catch(_e){}
+    }
+    function checkPendingRestore(){
+      var snap = getPendingRestore();
+      if(snap && snap.bank_id === STORAGE_NS){ applyRestore(snap); return true; }
+      return false;
+    }
+    // all-banks 合并页还原：自动勾选当时纳入的公开库并直接开始（受保护库无法自动解锁，跳过）
+    function maybeAutoMergeRestore(){
+      if(STORAGE_NS !== "all-banks") return false;
+      var snap = getPendingRestore();
+      if(!snap || snap.bank_id !== STORAGE_NS || !Array.isArray(snap.merged_banks) || !snap.merged_banks.length) return false;
+      var want = {}; snap.merged_banks.forEach(function(x){ want[x] = 1; });
+      var boxes = document.querySelectorAll('#ab-public-list [data-ab-pub]');
+      var matched = 0;
+      boxes.forEach(function(b){ var on = !!want[b.value]; b.checked = on; if(on) matched++; });
+      if(matched){ setTimeout(function(){ try{ startAllBanksMerged(); }catch(_e){} }, 30); return true; }
+      return false;
+    }
+
     /* ---- 逐题报错 ---- */
     var EDIT_ORIG=null; // 原题快照（提交时算 diff）
     function qbEditAddChoice(text, correct){
@@ -2050,13 +2351,6 @@
       const s = q && q.source;
       return Array.isArray(s) ? s.join(" | ") : String(s||"");
     }
-    // 「其它」类型时说明必填——切换 radio 时更新标签
-    document.addEventListener("change", function(e){
-      if(e.target && e.target.name==="qb-report-type"){
-        const lbl=document.getElementById("qb-report-msg-label");
-        if(lbl) lbl.textContent = (e.target.value==="other") ? T("fb_msg_required") : T("fb_msg_label");
-      }
-    });
     async function onReportSubmit(){
       if((document.getElementById("qb-report-hp")||{}).value){ closeReportModal(); return; } // 蜜罐命中：静默丢弃
       if(!EDIT_ORIG){ closeReportModal(); return; }
@@ -2087,11 +2381,12 @@
       var q=getQ(REPORT_CTX.qId), st=(uiState[REPORT_CTX.qId])||{};
       var payload={
         kind:"question_edit",
+        // 单库页 bank_file 不存在 → 用 STORAGE_NS（=真实库 id）；合并页 → 用该题标记的来源库 id。
+        bank_id: (q && q.bank_file) || STORAGE_NS,
         question_id:REPORT_CTX.qId, question_index:REPORT_CTX.idx,
         question_source: renderSourceText(q),
         question_type: EDIT_ORIG.choiceQ ? (EDIT_ORIG.multi?"multi":"single") : (isFill(q)?"fill":"essay"),
-        original: original, corrected: corrected, diff: diff, note: note,
-        submitted: !!st.submitted, was_wrong: wrongSet.has(REPORT_CTX.qId)
+        original: original, corrected: corrected, diff: diff, note: note
       };
       var btn=document.getElementById("qb-report-send"); if(btn) btn.disabled=true;
       fbStatus("qb-report-status", T("fb_sending"), "");
@@ -2274,6 +2569,7 @@
       const msg = document.getElementById("ab-msg");
       if (msg) msg.hidden = true;
       document.getElementById("qb-allbanks").hidden = false;
+      maybeAutoMergeRestore(); // 「重新加载历史」指向合并页时：自动勾选并开始
     }
     async function abUnlock(id){
       const row = document.querySelector('#ab-list [data-ab-id="' + id + '"]');
@@ -2328,7 +2624,11 @@
             const res = await fetch(e.json, { cache: "no-store" });
             if (!res.ok) throw new Error("HTTP " + res.status);
             const qs = await res.json();
-            return Array.isArray(qs) ? qs : [];
+            const arr = Array.isArray(qs) ? qs : [];
+            // 标记每题的来源库文件 id —— 合并视图里 STORAGE_NS 是 'all-banks'（无此文件），
+            // 「提议修正」要靠这个 bank_file 才能定位到真正的 banks/<id>.json 去改。dedup 的 {...q0} 会保留它。
+            arr.forEach(q => { if (q && typeof q === "object") q.bank_file = e.id; });
+            return arr;
           }catch(_err){
             abShowMsg(T("ab_load_fail", { id: e.id }));
             return null;
@@ -2337,7 +2637,8 @@
         if (fetched.some(x => x === null)) return; // 有库拉取失败：留在对话框让用户重试/取消勾选
         let qs = [];
         for (const arr of fetched) qs = qs.concat(arr);
-        for (const arr of AB_UNLOCKED.values()) qs = qs.concat(arr);
+        for (const [bid, arr] of AB_UNLOCKED.entries()){ arr.forEach(q => { if (q && typeof q === "object") q.bank_file = bid; }); qs = qs.concat(arr); }
+        MERGED_BANK_IDS = checkedIds.concat(Array.from(AB_UNLOCKED.keys())); // 历史快照记录本轮纳入的库
         document.getElementById("qb-allbanks").hidden = true;
         showQuizApp();
         startQuiz(qs);
