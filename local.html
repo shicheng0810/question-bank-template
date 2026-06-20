@@ -196,9 +196,6 @@
       <button class="btn" id="tutorial-help-btn" onclick="openTutorial()" data-testid="tutorial-help-btn"
               title="Tutorial" aria-label="Open tutorial"
               style="width:36px;height:36px;border-radius:50%;padding:0;font-weight:700">?</button>
-      <button class="btn coffee-pulse" id="coffee-btn" type="button" onclick="openCoffee()" data-testid="coffee-btn" hidden
-              title="Buy me a coffee" aria-label="Buy me a coffee"
-              style="width:36px;height:36px;border-radius:50%;padding:0;font-size:17px">☕</button>
     </label>
   </div>
 
@@ -400,21 +397,38 @@
     </div>
   </div>
 
-  <!-- ☕ Buy me a coffee（打赏）：弹窗 + 完成整轮的庆祝 toast + 彩带 -->
+  <!-- ☕ Buy me a coffee（打赏）：FAB「Click me for fun!」→ 扭蛋抽奖动画 → 蹦出金额档；+ 完成整轮庆祝 toast + 彩带 -->
   <style>
-    .coffee-pulse{position:relative}
-    .coffee-pulse:hover{transform:translateY(-1px)}
-    .coffee-card{max-width:430px;position:relative;text-align:center}
-    .coffee-cup{height:62px;display:flex;align-items:flex-end;justify-content:center;position:relative;margin:2px 0}
-    .coffee-cup .cup{width:52px;height:40px;background:linear-gradient(#ffffff,#eef2f8);border:3px solid var(--ink);border-radius:5px 5px 13px 13px;position:relative}
-    .coffee-cup .cup:before{content:"";position:absolute;right:-15px;top:6px;width:13px;height:17px;border:3px solid var(--ink);border-left:none;border-radius:0 11px 11px 0}
-    .coffee-cup .cup:after{content:"";position:absolute;left:5px;right:5px;top:5px;height:8px;background:#6f4e37;border-radius:3px}
-    .coffee-cup .steam{position:absolute;top:0;width:5px;height:22px;background:linear-gradient(rgba(148,163,184,0),rgba(148,163,184,.6));border-radius:3px;filter:blur(1px);opacity:0;animation:qbSteam 2.4s ease-in-out infinite}
-    .coffee-cup .steam:nth-child(1){left:calc(50% - 12px);animation-delay:.1s}
-    .coffee-cup .steam:nth-child(2){left:calc(50% - 1px);height:27px;animation-delay:.7s}
-    .coffee-cup .steam:nth-child(3){left:calc(50% + 10px);animation-delay:1.3s}
-    @keyframes qbSteam{0%{opacity:0;transform:translateY(8px) scaleY(.6)}35%{opacity:.75}100%{opacity:0;transform:translateY(-16px) scaleY(1.25)}}
-    .coffee-tiers{display:flex;gap:8px;margin:6px 0 10px}
+    /* 浮动按钮（右下角，会偶尔扭一下） */
+    .coffee-fab{position:fixed;right:18px;bottom:18px;z-index:80;display:inline-flex;align-items:center;gap:8px;padding:11px 16px;border-radius:999px;border:1px solid var(--brand);background:var(--brand);color:#fff;font:inherit;font-weight:700;font-size:14px;cursor:pointer;box-shadow:var(--shadow-lg);animation:cfWiggle 3.4s ease-in-out infinite}
+    .coffee-fab[hidden]{display:none}
+    .coffee-fab:hover{filter:brightness(1.07);transform:translateY(-2px)}
+    .coffee-fab .cf-emoji{font-size:17px}
+    @keyframes cfWiggle{0%,86%,100%{transform:rotate(0)}90%{transform:rotate(-7deg) scale(1.04)}94%{transform:rotate(7deg) scale(1.04)}}
+    @media (max-width:560px){.coffee-fab .cf-text{display:none}.coffee-fab{padding:13px;border-radius:50%;font-size:18px}}
+    .coffee-card{max-width:430px;position:relative;text-align:center;overflow:hidden}
+    /* 扭蛋 */
+    .gacha{height:104px;display:flex;align-items:center;justify-content:center;position:relative;margin:8px 0 2px}
+    .capsule{width:78px;height:78px;position:relative}
+    .capsule .cap-top,.capsule .cap-bot{position:absolute;left:0;right:0;height:50%;border:3px solid var(--ink);box-sizing:border-box}
+    .capsule .cap-top{top:0;background:var(--brand);border-radius:40px 40px 0 0;border-bottom:none}
+    .capsule .cap-bot{bottom:0;background:linear-gradient(#ffffff,#eef2f8);border-radius:0 0 40px 40px;border-top:2px dashed var(--ink)}
+    .capsule .cap-dot{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:16px;height:16px;border-radius:50%;background:rgba(255,255,255,.92);border:2px solid var(--ink);z-index:2}
+    .gacha.shaking .capsule{animation:gachaShake .42s ease-in-out 2}
+    @keyframes gachaShake{0%,100%{transform:rotate(0) translateY(0)}25%{transform:rotate(-13deg)}50%{transform:translateY(-6px)}75%{transform:rotate(13deg)}}
+    .gacha.cracking .cap-top{animation:capTop .55s forwards cubic-bezier(.3,-.4,.7,1)}
+    .gacha.cracking .cap-bot{animation:capBot .55s forwards}
+    .gacha.cracking .cap-dot{opacity:0;transition:opacity .2s}
+    @keyframes capTop{to{transform:translate(-26px,-58px) rotate(-46deg);opacity:0}}
+    @keyframes capBot{to{transform:translateY(16px);opacity:0}}
+    .gacha .prize{position:absolute;font-size:46px;opacity:0;transform:scale(.3) translateY(8px)}
+    .gacha.cracking .prize{animation:prizePop .6s .12s cubic-bezier(.2,.9,.3,1.5) forwards}
+    @keyframes prizePop{to{opacity:1;transform:scale(1) translateY(0)}}
+    .gacha-roll{font-weight:800;font-size:1.05rem;color:var(--brand);margin:2px 0 2px;min-height:1.3em;animation:qbPop .4s}
+    .coffee-reveal[hidden]{display:none}
+    .coffee-reveal{animation:revealUp .5s cubic-bezier(.2,.9,.3,1.1)}
+    @keyframes revealUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+    .coffee-tiers{display:flex;gap:8px;margin:8px 0 10px}
     .coffee-tier{flex:1;flex-direction:column;gap:3px;padding:11px 6px;height:auto;line-height:1.2}
     .coffee-tier .ct-emoji{font-size:17px}
     .coffee-tier .ct-amt{font-size:11px;color:var(--muted);font-weight:700}
@@ -427,23 +441,32 @@
     .coffee-toast strong{font-size:14px}
     .coffee-toast .qb-x{width:30px;height:30px}
     @keyframes qbToastIn{from{opacity:0;transform:translate(-50%,18px)}to{opacity:1;transform:translate(-50%,0)}}
-    @media (prefers-reduced-motion: reduce){.coffee-cup .steam{animation:none;opacity:.45}.coffee-toast,.coffee-thanks{animation:none}}
+    @media (prefers-reduced-motion: reduce){.coffee-fab{animation:none}.gacha .prize{opacity:1!important;transform:none!important}.coffee-toast,.coffee-thanks,.gacha-roll,.coffee-reveal{animation:none}}
   </style>
+  <button class="coffee-fab" id="coffee-btn" type="button" onclick="openCoffee()" data-testid="coffee-btn" hidden aria-label="Buy me a coffee">
+    <span class="cf-emoji" aria-hidden="true">☕</span><span class="cf-text" data-i18n="coffee_fab">Click me for fun!</span>
+  </button>
   <canvas id="qb-confetti" hidden style="position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:130"></canvas>
   <div class="tut-overlay" id="qb-coffee" hidden data-testid="qb-coffee" onclick="if(event.target===this)closeCoffee()">
     <div class="tut-card coffee-card">
-      <button class="btn qb-x" onclick="closeCoffee()" data-testid="coffee-close-btn" aria-label="Close" style="position:absolute;top:12px;right:12px">✕</button>
-      <div class="coffee-cup" aria-hidden="true"><span class="steam"></span><span class="steam"></span><span class="steam"></span><div class="cup"></div></div>
-      <h2 data-i18n="coffee_title" style="margin:6px 0 6px;font-size:1.2rem">Buy me a coffee ☕</h2>
-      <p class="meta" id="coffee-stat" hidden style="margin:0 0 6px;color:var(--brand);font-weight:600"></p>
-      <p class="meta" data-i18n="coffee_blurb" style="margin:0 0 14px;line-height:1.6">This question bank is free. If it helped, buy me a coffee.</p>
-      <div class="coffee-tiers">
-        <button class="btn coffee-tier" onclick="coffeeGo(event)" data-testid="coffee-tier-s"><span class="ct-emoji">☕</span><span data-i18n="coffee_tier_s">Espresso</span></button>
-        <button class="btn coffee-tier" onclick="coffeeGo(event)" data-testid="coffee-tier-m"><span class="ct-emoji">☕☕</span><span data-i18n="coffee_tier_m">Latte</span></button>
-        <button class="btn coffee-tier" onclick="coffeeGo(event)" data-testid="coffee-tier-l"><span class="ct-emoji">🫘</span><span data-i18n="coffee_tier_l">Whole bag</span></button>
+      <button class="btn qb-x" onclick="closeCoffee()" data-testid="coffee-close-btn" aria-label="Close" style="position:absolute;top:12px;right:12px;z-index:3">✕</button>
+      <div class="gacha" id="coffee-gacha" aria-hidden="true">
+        <div class="capsule" id="coffee-capsule"><span class="cap-top"></span><span class="cap-bot"></span><span class="cap-dot"></span></div>
+        <div class="prize">☕</div>
       </div>
-      <button class="btn submit-btn" onclick="coffeeGo(event)" data-i18n="coffee_go" data-testid="coffee-go-btn" style="width:100%;justify-content:center">Buy me a coffee →</button>
-      <p class="meta coffee-thanks" id="coffee-thanks" hidden data-i18n="coffee_thanks" style="margin:12px 0 0;color:var(--success-ink);font-weight:600">Thank you!</p>
+      <p class="gacha-roll" id="coffee-roll" hidden></p>
+      <div class="coffee-reveal" id="coffee-reveal" hidden>
+        <h2 data-i18n="coffee_title" style="margin:4px 0 6px;font-size:1.2rem">Buy me a coffee ☕</h2>
+        <p class="meta" id="coffee-stat" hidden style="margin:0 0 6px;color:var(--brand);font-weight:600"></p>
+        <p class="meta" data-i18n="coffee_blurb" style="margin:0 0 14px;line-height:1.6">This question bank is free. If it helped, buy me a coffee.</p>
+        <div class="coffee-tiers">
+          <button class="btn coffee-tier" onclick="coffeeGo(event)" data-testid="coffee-tier-s"><span class="ct-emoji">☕</span><span data-i18n="coffee_tier_s">Espresso</span></button>
+          <button class="btn coffee-tier" onclick="coffeeGo(event)" data-testid="coffee-tier-m"><span class="ct-emoji">☕☕</span><span data-i18n="coffee_tier_m">Latte</span></button>
+          <button class="btn coffee-tier" onclick="coffeeGo(event)" data-testid="coffee-tier-l"><span class="ct-emoji">🫘</span><span data-i18n="coffee_tier_l">Whole bag</span></button>
+        </div>
+        <button class="btn submit-btn" onclick="coffeeGo(event)" data-i18n="coffee_go" data-testid="coffee-go-btn" style="width:100%;justify-content:center">Buy me a coffee →</button>
+        <p class="meta coffee-thanks" id="coffee-thanks" hidden data-i18n="coffee_thanks" style="margin:12px 0 0;color:var(--success-ink);font-weight:600">Thank you!</p>
+      </div>
     </div>
   </div>
   <div class="coffee-toast" id="qb-coffee-toast" hidden data-testid="qb-coffee-toast">
@@ -568,6 +591,7 @@
         ab_load_fail: "Failed to load: {id}",
         ab_start: "Start practicing",
         coffee_title: "Buy me a coffee ☕",
+        coffee_fab: "Click me for fun!", coffee_roll_label: "You rolled:",
         coffee_blurb: "This question bank is free and ad-free, built by one person. If it helped your studying, a coffee keeps it caffeinated and growing. 🙏",
         coffee_stat: "You've powered through {n} questions here. ☕",
         coffee_tier_s: "Espresso", coffee_tier_m: "Latte", coffee_tier_l: "Whole bag",
@@ -646,6 +670,7 @@
         ab_load_fail: "加载失败：{id}",
         ab_start: "开始做题",
         coffee_title: "请我喝杯咖啡 ☕",
+        coffee_fab: "点我玩一下！", coffee_roll_label: "你抽到了：",
         coffee_blurb: "这个题库免费、无广告，一个人做的。如果它帮到了你的复习，一杯咖啡能让它继续有咖啡因、继续长大。🙏",
         coffee_stat: "你已经在这里刷了 {n} 道题。☕",
         coffee_tier_s: "浓缩", coffee_tier_m: "拿铁", coffee_tier_l: "一整袋豆",
@@ -724,6 +749,7 @@
         ab_load_fail: "Fallo al cargar: {id}",
         ab_start: "Empezar",
         coffee_title: "Invítame a un café ☕",
+        coffee_fab: "¡Tócame, es divertido!", coffee_roll_label: "¡Te tocó:",
         coffee_blurb: "Este banco de preguntas es gratis y sin anuncios, hecho por una sola persona. Si te ayudó a estudiar, un café lo mantiene con cafeína y creciendo. 🙏",
         coffee_stat: "Ya has resuelto {n} preguntas aquí. ☕",
         coffee_tier_s: "Espresso", coffee_tier_m: "Latte", coffee_tier_l: "Bolsa entera",
@@ -2776,10 +2802,17 @@
       }catch(_e){}
     }
 
-    function openCoffee(){
-      if (!DONATION) return;
-      const ov = document.getElementById("qb-coffee");
-      if (!ov) return;
+    // 扭蛋随机"战利品"文案（纯趣味，不影响金额）
+    const COFFEE_ROLLS = {
+      en: ["☕ GOLDEN BEAN! Legendary roast.","✨ DOUBLE ESPRESSO! +10 focus.","🫧 EXTRA FOAM! So smooth.","🔥 DARK ROAST! Bold move.","🍀 LUCKY SIP! Nice one.","💎 DIAMOND DRIP! Super rare.","🌟 CARAMEL CROWN! Sweet."],
+      zh: ["☕ 黄金咖啡豆！传说级烘焙。","✨ 双份浓缩！专注 +10。","🫧 加量奶泡！丝般顺滑。","🔥 深焙！够猛。","🍀 幸运一口！不错哦。","💎 钻石手冲！超稀有。","🌟 焦糖皇冠！甜。"],
+      es: ["☕ ¡GRANO DORADO! Tueste legendario.","✨ ¡DOBLE ESPRESSO! +10 de enfoque.","🫧 ¡EXTRA ESPUMA! Suavísimo.","🔥 ¡TUESTE OSCURO! Con carácter.","🍀 ¡SORBO CON SUERTE! Bien.","💎 ¡GOTEO DIAMANTE! Súper raro.","🌟 ¡CORONA DE CARAMELO! Dulce."]
+    };
+    function coffeeReset(){
+      const g = document.getElementById("coffee-gacha"); if (g) g.classList.remove("shaking","cracking");
+      const roll = document.getElementById("coffee-roll"); if (roll){ roll.hidden = true; roll.textContent = ""; }
+      const rev = document.getElementById("coffee-reveal"); if (rev) rev.hidden = true;
+      const thanks = document.getElementById("coffee-thanks"); if (thanks) thanks.hidden = true;
       const statEl = document.getElementById("coffee-stat");
       if (statEl){
         let n = 0;
@@ -2787,8 +2820,28 @@
         if (n > 0){ statEl.textContent = T("coffee_stat", { n: n }); statEl.hidden = false; }
         else statEl.hidden = true;
       }
-      const thanks = document.getElementById("coffee-thanks"); if (thanks) thanks.hidden = true;
+    }
+    function coffeeRevealDonate(){
+      const roll = document.getElementById("coffee-roll");
+      if (roll){ const list = COFFEE_ROLLS[uiLang] || COFFEE_ROLLS.en; const pick = list[Math.floor(Math.random() * list.length)]; roll.textContent = T("coffee_roll_label") + " " + pick; roll.hidden = false; }
+      const rev = document.getElementById("coffee-reveal"); if (rev) rev.hidden = false;
+    }
+    // 扭蛋序列：摇晃 → 裂开+彩带 → 蹦出金额档
+    function runGacha(){
+      const g = document.getElementById("coffee-gacha");
+      const reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (!g || reduce){ if (g) g.classList.add("cracking"); coffeeRevealDonate(); return; }
+      g.classList.add("shaking");
+      setTimeout(function(){ g.classList.remove("shaking"); g.classList.add("cracking"); fireConfetti(innerWidth / 2, innerHeight * 0.42); }, 820);
+      setTimeout(function(){ coffeeRevealDonate(); }, 1480);
+    }
+    function openCoffee(){
+      if (!DONATION) return;
+      const ov = document.getElementById("qb-coffee");
+      if (!ov) return;
+      coffeeReset();
       ov.hidden = false;
+      runGacha();
     }
     function closeCoffee(){ const ov = document.getElementById("qb-coffee"); if (ov) ov.hidden = true; }
     // PayPal.Me 支持 /<amount><currency> 预填金额；其它平台忽略金额、打开主页让用户自填。
