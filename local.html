@@ -417,6 +417,7 @@
     .coffee-tiers{display:flex;gap:8px;margin:6px 0 10px}
     .coffee-tier{flex:1;flex-direction:column;gap:3px;padding:11px 6px;height:auto;line-height:1.2}
     .coffee-tier .ct-emoji{font-size:17px}
+    .coffee-tier .ct-amt{font-size:11px;color:var(--muted);font-weight:700}
     .coffee-tier:hover{border-color:var(--brand);transform:translateY(-2px)}
     .coffee-thanks{animation:qbPop .45s cubic-bezier(.2,.9,.3,1.3)}
     @keyframes qbPop{from{opacity:0;transform:scale(.8)}to{opacity:1;transform:scale(1)}}
@@ -792,6 +793,7 @@
       // 4) ☕ 打赏：仅当注入了 donation.url 才显示入口（离线导出/未配置=隐藏）
       DONATION = (UI_FEATURES.donation && UI_FEATURES.donation.url) ? UI_FEATURES.donation : null;
       const cb = document.getElementById("coffee-btn"); if (cb) cb.hidden = !DONATION;
+      if (DONATION) setupCoffeeTiers();
     }
 
     /* ---- 主题（浅/深）切换：与目录页共用 qb_theme 偏好 ---- */
@@ -2789,12 +2791,33 @@
       ov.hidden = false;
     }
     function closeCoffee(){ const ov = document.getElementById("qb-coffee"); if (ov) ov.hidden = true; }
+    // PayPal.Me 支持 /<amount><currency> 预填金额；其它平台忽略金额、打开主页让用户自填。
+    function coffeeUrl(amount){
+      let url = (DONATION && DONATION.url) ? DONATION.url : "";
+      if (url && amount && DONATION.provider === "paypal"){ url = url.replace(/\/+$/, "") + "/" + amount + (DONATION.currency || ""); }
+      return url;
+    }
     function coffeeGo(ev){
-      if (DONATION && DONATION.url){ try{ window.open(DONATION.url, "_blank", "noopener"); }catch(_e){} }
+      const t = ev && ev.currentTarget;
+      const amount = (t && t.dataset && t.dataset.amount) ? t.dataset.amount : null;
+      const url = coffeeUrl(amount);
+      if (url){ try{ window.open(url, "_blank", "noopener"); }catch(_e){} }
       let x = innerWidth / 2, y = innerHeight / 2;
       if (ev && typeof ev.clientX === "number" && (ev.clientX || ev.clientY)){ x = ev.clientX; y = ev.clientY; }
       fireConfetti(x, y);
       const thanks = document.getElementById("coffee-thanks"); if (thanks) thanks.hidden = false;
+    }
+    // 把配置里的三档金额写到三个 tier 按钮上（data-amount + 标签后缀 $N）
+    function setupCoffeeTiers(){
+      if (!DONATION || !Array.isArray(DONATION.amounts) || DONATION.amounts.length < 3) return;
+      ["coffee-tier-s","coffee-tier-m","coffee-tier-l"].forEach(function(id, i){
+        const btn = document.querySelector('[data-testid="' + id + '"]');
+        if (!btn) return;
+        btn.dataset.amount = String(DONATION.amounts[i]);
+        let b = btn.querySelector(".ct-amt");
+        if (!b){ b = document.createElement("span"); b.className = "ct-amt"; btn.appendChild(b); }
+        b.textContent = "$" + DONATION.amounts[i];
+      });
     }
 
     // 做完整轮（当前列表全部提交）时的庆祝：永远来一蓬彩带；首次再附一个不打扰的打赏 toast。

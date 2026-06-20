@@ -57,6 +57,7 @@
     .coffee-tiers{display:flex;gap:8px;margin:8px 0 12px}
     .coffee-tiers .qb-btn{flex:1;flex-direction:column;gap:3px;padding:11px 6px;height:auto;line-height:1.2;display:inline-flex;align-items:center}
     .coffee-tiers .qb-btn .ct-emoji{font-size:17px}
+    .coffee-tiers .qb-btn .ct-amt{font-size:11px;color:var(--muted);font-weight:700}
     .coffee-tiers .qb-btn:hover{border-color:var(--brand);transform:translateY(-2px)}
     #coffee-thanks{animation:qbPop .45s cubic-bezier(.2,.9,.3,1.3)}
     @keyframes qbPop{from{opacity:0;transform:scale(.8)}to{opacity:1;transform:scale(1)}}
@@ -739,10 +740,21 @@
       applyLang();
       applyThemeIcon();
       scanProgress();
+      if (typeof setupCoffeeTiers === "function") setupCoffeeTiers();
     }
 
     /* ---- ☕ Buy me a coffee（打赏） ---- */
-    var DONATION_URL = "https://www.buymeacoffee.com/YOUR_HANDLE";
+    var DONATION = {"provider":"paypal","url":"https://www.paypal.me/YOUR_HANDLE","amounts":[3,5,15],"currency":"USD"};
+    function coffeeUrl(amount){ var url = (DONATION && DONATION.url) ? DONATION.url : ""; if (url && amount && DONATION.provider === "paypal"){ url = url.replace(/\/+$/, "") + "/" + amount + (DONATION.currency || ""); } return url; }
+    function setupCoffeeTiers(){
+      if (!DONATION || !Array.isArray(DONATION.amounts) || DONATION.amounts.length < 3) return;
+      ["coffee-tier-s","coffee-tier-m","coffee-tier-l"].forEach(function(id, i){
+        var btn = document.querySelector('[data-testid="' + id + '"]'); if (!btn) return;
+        btn.dataset.amount = String(DONATION.amounts[i]);
+        var b = btn.querySelector(".ct-amt"); if (!b){ b = document.createElement("span"); b.className = "ct-amt"; btn.appendChild(b); }
+        b.textContent = "$" + DONATION.amounts[i];
+      });
+    }
     function fireConfetti(x, y){
       try{
         if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -766,7 +778,8 @@
       var s = document.getElementById("coffee-stat"); if (s){ var n = coffeeBankCount(); if (n > 0){ s.textContent = T("coffee_stat", { n: n }); s.hidden = false; } else s.hidden = true; }
       var th = document.getElementById("coffee-thanks"); if (th) th.hidden = true; ov.hidden = false; }
     function closeCoffee(){ var ov = document.getElementById("coffee-modal"); if (ov) ov.hidden = true; }
-    function coffeeGo(ev){ try{ window.open(DONATION_URL, "_blank", "noopener"); }catch(e){}
+    function coffeeGo(ev){ var t = ev && ev.currentTarget; var amount = (t && t.dataset && t.dataset.amount) ? t.dataset.amount : null; var url = coffeeUrl(amount);
+      try{ if (url) window.open(url, "_blank", "noopener"); }catch(e){}
       var x = innerWidth / 2, y = innerHeight / 2; if (ev && typeof ev.clientX === "number" && (ev.clientX || ev.clientY)){ x = ev.clientX; y = ev.clientY; }
       fireConfetti(x, y); var th = document.getElementById("coffee-thanks"); if (th) th.hidden = false; }
 
