@@ -194,17 +194,15 @@
     html[data-motion="off"] .qb-shake, html[data-motion="off"] .qb-ok-pulse, html[data-motion="off"] .qb-bad-pulse,
     html[data-motion="off"] .qb-star-pop, html[data-motion="off"] .qb-star-pop svg, html[data-motion="off"] .qb-flash, html[data-motion="off"] .qb-float, html[data-motion="off"] .qb-tick,
     html[data-motion="off"] .feedback.visible, html[data-motion="off"] .qb-toast, html[data-motion="off"] .qb-hint, html[data-motion="off"] .qb-welcome, html[data-motion="off"] .qb-sheet-panel,
-    html[data-motion="off"] .fb-check path,
-    html[data-motion="off"] .coffee-fab.wiggle{animation:none !important}
+    html[data-motion="off"] .fb-check path{animation:none !important}
+    /* 注意：coffee ☕ 首次抖动引导（.coffee-fab.wiggle）刻意不入动效闸门——始终显示以引导用户看到打赏按钮 */
     html[data-motion="reduced"] .qb-shake, html[data-motion="reduced"] .qb-ok-pulse, html[data-motion="reduced"] .qb-bad-pulse,
     html[data-motion="reduced"] .qb-star-pop, html[data-motion="reduced"] .qb-star-pop svg, html[data-motion="reduced"] .qb-flash, html[data-motion="reduced"] .qb-float, html[data-motion="reduced"] .qb-tick,
-    html[data-motion="reduced"] .fb-check path,
-    html[data-motion="reduced"] .coffee-fab.wiggle{animation:none !important}
+    html[data-motion="reduced"] .fb-check path{animation:none !important}
     @media (prefers-reduced-motion: reduce){
       html:not([data-motion="full"]) .qb-shake, html:not([data-motion="full"]) .qb-ok-pulse, html:not([data-motion="full"]) .qb-bad-pulse,
       html:not([data-motion="full"]) .qb-star-pop, html:not([data-motion="full"]) .qb-star-pop svg, html:not([data-motion="full"]) .qb-flash, html:not([data-motion="full"]) .qb-float, html:not([data-motion="full"]) .qb-tick,
-      html:not([data-motion="full"]) .fb-check path,
-      html:not([data-motion="full"]) .coffee-fab.wiggle{animation:none !important}
+      html:not([data-motion="full"]) .fb-check path{animation:none !important}
     }
 
     /* ===== P1 判分微动效 ===== */
@@ -611,7 +609,7 @@
     .coffee-toast strong{font-size:14px}
     .coffee-toast .qb-x{width:30px;height:30px}
     @keyframes qbToastIn{from{opacity:0;transform:translate(-50%,18px)}to{opacity:1;transform:translate(-50%,0)}}
-    @media (prefers-reduced-motion: reduce){.coffee-fab.wiggle{animation:none}.barista .cup .fill{height:74%!important}.coffee-toast,.coffee-thanks,.coffee-brewline,.coffee-reveal{animation:none}}
+    @media (prefers-reduced-motion: reduce){.barista .cup .fill{height:74%!important}.coffee-toast,.coffee-thanks,.coffee-brewline,.coffee-reveal{animation:none}}
   </style>
   <!-- ☕ coffee 按钮已移至 filter-row（与 Filter Question Banks 齐平，不再占用 header 行） -->
   <canvas id="qb-confetti" hidden style="position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:130"></canvas>
