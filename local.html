@@ -113,6 +113,10 @@
     .mt-2{margin-top:8px}
 
     details.filter-panel{width:100%; margin-bottom:14px; border:1px solid var(--border); border-radius:var(--radius); background:var(--card); overflow:hidden; box-shadow:var(--shadow-sm)}
+    /* coffee 按钮与 Filter Question Banks 同行齐平（顶部对齐；filter 隐藏时 coffee 仍靠右） */
+    .filter-row{display:flex; gap:10px; align-items:flex-start; margin-bottom:14px}
+    .filter-row>.filter-panel{flex:1 1 auto; width:auto; margin-bottom:0}
+    .filter-row>.coffee-fab{margin-left:auto; flex:0 0 auto; align-self:flex-start}
     summary.btn{border:none; border-radius:0; box-shadow:none; background:var(--card-2); width:100%; text-align:left; font-weight:650; list-style:none; display:flex; justify-content:space-between; align-items:center; padding:13px 16px; color:var(--ink)}
     summary.btn:hover{background:var(--hover)}
     summary.btn::-webkit-details-marker{display:none}
@@ -343,17 +347,22 @@
     </div>
   </div>
 
-  <details class="filter-panel">
-    <summary class="btn" data-i18n="filter_summary">Filter Question Banks</summary>
-    <div class="filter-content">
-      <div class="filter-grid" id="filter-container"></div>
-      <div style="display:flex;gap:10px;">
-        <button class="btn btn-sm" onclick="toggleFilters(true)" data-i18n="select_all">Select All</button>
-        <button class="btn btn-sm" onclick="toggleFilters(false)" data-i18n="select_none">Select None</button>
-        <button class="btn btn-sm confirm-btn" onclick="confirmFilters()" data-i18n="confirm">Confirm</button>
+  <div class="filter-row">
+    <details class="filter-panel">
+      <summary class="btn" data-i18n="filter_summary">Filter Question Banks</summary>
+      <div class="filter-content">
+        <div class="filter-grid" id="filter-container"></div>
+        <div style="display:flex;gap:10px;">
+          <button class="btn btn-sm" onclick="toggleFilters(true)" data-i18n="select_all">Select All</button>
+          <button class="btn btn-sm" onclick="toggleFilters(false)" data-i18n="select_none">Select None</button>
+          <button class="btn btn-sm confirm-btn" onclick="confirmFilters()" data-i18n="confirm">Confirm</button>
+        </div>
       </div>
-    </div>
-  </details>
+    </details>
+    <button class="coffee-fab" id="coffee-btn" type="button" onclick="openCoffee()" data-testid="coffee-btn" hidden aria-label="Buy me a coffee">
+      <span class="cf-emoji" aria-hidden="true">☕</span><span class="cf-text" data-i18n="coffee_fab">Click me for fun!</span>
+    </button>
+  </div>
 
   <div class="toolbar">
     <button class="btn" id="btn-random" onclick="shuffleAndRender()" data-i18n="randomize">Randomize + Reset</button>
@@ -550,10 +559,10 @@
   <!-- ☕ Buy me a coffee（打赏）：FAB「Click me for fun!」→ 扭蛋抽奖动画 → 蹦出金额档；+ 完成整轮庆祝 toast + 彩带 -->
   <style>
     /* 做题页浮动按钮：右上角，默认 absolute（随页面滚走、不跟随）；跳动时切 fixed 跟随滚动，跳完(JS去class)复原 */
-    .coffee-fab{position:absolute;right:16px;top:14px;z-index:80;display:inline-flex;align-items:center;gap:8px;padding:11px 16px;border-radius:999px;border:1px solid var(--brand);background:var(--brand);color:#fff;font:inherit;font-weight:700;font-size:14px;cursor:pointer;box-shadow:var(--shadow-lg)}
+    .coffee-fab{position:relative;z-index:1;display:inline-flex;align-items:center;gap:8px;padding:11px 16px;border-radius:999px;border:1px solid var(--brand);background:var(--brand);color:#fff;font:inherit;font-weight:700;font-size:14px;cursor:pointer;box-shadow:var(--shadow-lg)}
     .coffee-fab[hidden]{display:none}
     .coffee-fab:hover{filter:brightness(1.07);transform:translateY(-2px)}
-    .coffee-fab.wiggle{position:fixed;top:14px;right:16px;animation:cfWiggle .9s ease-in-out 3} /* 跳 3 次自动停；期间 fixed 跟随滚动 */
+    .coffee-fab.wiggle{animation:cfWiggle .9s ease-in-out 3} /* 原地抖 3 次自动停（已在 filter-row 内，无需 fixed） */
     .coffee-fab .cf-emoji{font-size:17px}
     @keyframes cfWiggle{0%,55%,100%{transform:rotate(0)}68%{transform:rotate(-8deg) scale(1.05)}84%{transform:rotate(8deg) scale(1.05)}}
     @media (max-width:560px){.coffee-fab .cf-text{display:none}.coffee-fab{padding:13px;border-radius:50%;font-size:18px}}
@@ -602,9 +611,7 @@
     @keyframes qbToastIn{from{opacity:0;transform:translate(-50%,18px)}to{opacity:1;transform:translate(-50%,0)}}
     @media (prefers-reduced-motion: reduce){.coffee-fab.wiggle{animation:none}.barista .cup .fill{height:74%!important}.coffee-toast,.coffee-thanks,.coffee-brewline,.coffee-reveal{animation:none}}
   </style>
-  <button class="coffee-fab" id="coffee-btn" type="button" onclick="openCoffee()" data-testid="coffee-btn" hidden aria-label="Buy me a coffee">
-    <span class="cf-emoji" aria-hidden="true">☕</span><span class="cf-text" data-i18n="coffee_fab">Click me for fun!</span>
-  </button>
+  <!-- ☕ coffee 按钮已移至 filter-row（与 Filter Question Banks 齐平，不再占用 header 行） -->
   <canvas id="qb-confetti" hidden style="position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:130"></canvas>
   <div class="tut-overlay" id="qb-coffee" hidden data-testid="qb-coffee" onclick="if(event.target===this)closeCoffee()">
     <div class="tut-card coffee-card">
