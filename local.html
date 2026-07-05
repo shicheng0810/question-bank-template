@@ -113,10 +113,12 @@
     .mt-2{margin-top:8px}
 
     details.filter-panel{width:100%; margin-bottom:14px; border:1px solid var(--border); border-radius:var(--radius); background:var(--card); overflow:hidden; box-shadow:var(--shadow-sm)}
-    /* coffee 按钮与 Filter Question Banks 同行齐平（顶部对齐；filter 隐藏时 coffee 仍靠右） */
-    .filter-row{display:flex; gap:10px; align-items:flex-start; margin-bottom:14px}
-    .filter-row>.filter-panel{flex:1 1 auto; width:auto; margin-bottom:0}
-    .filter-row>.coffee-fab{margin-left:auto; flex:0 0 auto; align-self:flex-start}
+    /* coffee 按钮游离浮动（不占布局、不压窄 filter），绝对定位到 Filter 行右上角、与之平齐 */
+    .filter-row{position:relative; margin-bottom:14px; min-height:44px}
+    .filter-row>.filter-panel{width:100%; margin-bottom:0}
+    /* 贴视口右缘：宽屏突破 body(max-width:960) 居中列的右侧留白；窄屏(≤960)回落到内容右缘(=贴右) */
+    .filter-row>.coffee-fab{top:-2px; right:min(0px, calc((960px - 100vw) / 2))}
+    @media (max-width:560px){ .filter-row>.coffee-fab{top:-7px} } /* 窄屏 coffee 变圆形、更高，校准中线与 Filter 平齐 */
     summary.btn{border:none; border-radius:0; box-shadow:none; background:var(--card-2); width:100%; text-align:left; font-weight:650; list-style:none; display:flex; justify-content:space-between; align-items:center; padding:13px 16px; color:var(--ink)}
     summary.btn:hover{background:var(--hover)}
     summary.btn::-webkit-details-marker{display:none}
@@ -559,7 +561,7 @@
   <!-- ☕ Buy me a coffee（打赏）：FAB「Click me for fun!」→ 扭蛋抽奖动画 → 蹦出金额档；+ 完成整轮庆祝 toast + 彩带 -->
   <style>
     /* 做题页浮动按钮：右上角，默认 absolute（随页面滚走、不跟随）；跳动时切 fixed 跟随滚动，跳完(JS去class)复原 */
-    .coffee-fab{position:relative;z-index:1;display:inline-flex;align-items:center;gap:8px;padding:11px 16px;border-radius:999px;border:1px solid var(--brand);background:var(--brand);color:#fff;font:inherit;font-weight:700;font-size:14px;cursor:pointer;box-shadow:var(--shadow-lg)}
+    .coffee-fab{position:absolute;z-index:80;display:inline-flex;align-items:center;gap:8px;padding:11px 16px;border-radius:999px;border:1px solid var(--brand);background:var(--brand);color:#fff;font:inherit;font-weight:700;font-size:14px;cursor:pointer;box-shadow:var(--shadow-lg)}
     .coffee-fab[hidden]{display:none}
     .coffee-fab:hover{filter:brightness(1.07);transform:translateY(-2px)}
     .coffee-fab.wiggle{animation:cfWiggle .9s ease-in-out 3} /* 原地抖 3 次自动停（已在 filter-row 内，无需 fixed） */
