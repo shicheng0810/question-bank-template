@@ -562,7 +562,7 @@
     .coffee-fab{position:absolute;z-index:80;display:inline-flex;align-items:center;gap:8px;padding:11px 16px;border-radius:999px;border:1px solid var(--brand);background:var(--brand);color:#fff;font:inherit;font-weight:700;font-size:14px;cursor:pointer;box-shadow:var(--shadow-lg)}
     .coffee-fab[hidden]{display:none}
     .coffee-fab:hover{filter:brightness(1.07);transform:translateY(-2px)}
-    .coffee-fab.wiggle{animation:cfWiggle .9s ease-in-out 3} /* 原地抖 3 次自动停（已在 filter-row 内，无需 fixed） */
+    .coffee-fab.wiggle{position:fixed;top:14px;right:16px;animation:cfWiggle .9s ease-in-out 3} /* 抖动期间 fixed 钉视口右上角→无论滚到哪都可见（原本机制）；抖完复原成 absolute 回 filter 行 */
     .coffee-fab .cf-emoji{font-size:17px}
     @keyframes cfWiggle{0%,55%,100%{transform:rotate(0)}68%{transform:rotate(-8deg) scale(1.05)}84%{transform:rotate(8deg) scale(1.05)}}
     @media (max-width:560px){.coffee-fab .cf-text{display:none}.coffee-fab{padding:13px;border-radius:50%;font-size:18px}}
